@@ -1,0 +1,617 @@
+import * as THREE from 'three';
+import { scene, controls, renderer, camera, collidableObjects, playerHeight, playerRadius } from './main.js';
+
+// Player movement variables
+let moveForward = false;
+let moveBackward = false;
+let moveLeft = false;
+let moveRight = false;
+let canJump = false;
+let jumpCount = 0;
+
+// Player physics
+export const velocity = new THREE.Vector3();
+const direction = new THREE.Vector3();
+const clock = new THREE.Clock();
+
+// Player settings
+export const jumpHeight = 35;
+export const gravity = 9.8 * 10;
+export const maxJumps = 30000;
+
+// Player collider - visual representation
+let playerCollider;
+let animationFrameId;
+
+export function setupPlayer() {
+  console.log("Setting up player");
+  document.addEventListener('keydown', onKeyDown);
+  document.addEventListener('keyup', onKeyUp);
+  
+  // Initialize player state
+  canJump = true;
+  
+  // Create visual player collider
+  createPlayerCollider();
+  
+  // Start animation loop
+  animatePlayer();
+}
+
+/**
+ * Creates a visual representation of the player's collision volume
+ */
+function createPlayerCollider() {
+  // Create a sphere to represent the player collision volume
+  const geometry = new THREE.SphereGeometry(playerRadius, 16, 16);
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x00ff00,
+    wireframe: true,
+    opacity: 0.5,
+    transparent: true
+  });
+  
+  playerCollider = new THREE.Mesh(geometry, material);
+  playerCollider.position.y = -playerHeight; // Position relative to camera
+  
+  // Add collider to the camera/controls
+  controls.getObject().add(playerCollider);
+  
+  console.log("Player collider created");
+}
+
+function onKeyDown(event) {
+  switch (event.code) {
+    case 'KeyW': moveForward = true; break;
+    case 'KeyA': moveLeft = true; break;
+    case 'KeyS': moveBackward = true; break;
+    case 'KeyD': moveRight = true; break;
+    case 'Space': 
+      if (canJump || jumpCount < maxJumps) {
+        velocity.y += jumpHeight;
+        canJump = false;
+        jumpCount++;
+      }
+      break;
+  }
+}
+
+function onKeyUp(event) {
+  switch (event.code) {
+    case 'KeyW': moveForward = false; break;
+    case 'KeyA': moveLeft = false; break;
+    case 'KeyS': moveBackward = false; break;
+    case 'KeyD': moveRight = false; break;
+  }
+}
+
+// Check for collisions with objects
+function checkCollision(position) {
+  try {
+    for (const object of collidableObjects) {
+      // Special handling for bridge colliders created in bridgeUtils.js
+      if (object.userData && object.userData.isBridgeCollider) {
+        // Use specialized bridge collision logic
+        if (checkBridgeColliderCollision(position, object)) {
+          return true;
+        }
+        continue;
+      }
+      
+      // Special handling for bridge hitboxes
+      if (object.userData && (object.userData.type === 'bridgeHitbox' || object.userData.bridgeHitbox === true)) {
+        // For bridge hitboxes, use a more accurate collision detection
+        if (checkBridgeCollision(position, object)) {
+          return true;
+        }
+        continue; // Skip regular collision check
+      }
+      
+      // Special handling for cylinders
+      if (object.geometry instanceof THREE.CylinderGeometry) {
+        // Calculate horizontal distance to cylinder center
+        const cylinderPosition = object.position.clone();
+        
+        // Convert both positions to horizontal only (ignore y/height)
+        const horizontalPosition = position.clone();
+        horizontalPosition.y = 0;
+        
+        const horizontalCylinderPosition = cylinderPosition.clone();
+        horizontalCylinderPosition.y = 0;
+        
+        // Get horizontal distance
+        const distance = horizontalPosition.distanceTo(horizontalCylinderPosition);
+        
+        // Get cylinder properties
+        const radius = object.geometry.parameters.radiusTop;
+        
+        // Check vertical overlap (is player within the height of the cylinder?)
+        const cylinderHeight = object.geometry.parameters.height;
+        const cylinderTop = cylinderPosition.y + cylinderHeight / 2;
+        const cylinderBottom = cylinderPosition.y - cylinderHeight / 2;
+        
+        const playerBottom = position.y - playerRadius;
+        const playerTop = position.y + playerRadius;
+        
+        const verticalOverlap = 
+          (playerBottom <= cylinderTop && playerBottom >= cylinderBottom) || 
+          (playerTop >= cylinderBottom && playerTop <= cylinderTop) ||
+          (playerBottom <= cylinderBottom && playerTop >= cylinderTop);
+        
+        // If horizontal distance is less than sum of radii and there's vertical overlap
+        if (distance < radius + playerRadius && verticalOverlap) {
+          return true;
+        }
+      }
+      // For other objects, continue using box collision
+      else if (object.geometry) {
+        // Get object bounds
+        const objectBox = new THREE.Box3().setFromObject(object);
+        
+        // Create player bounds (simple sphere approximation)
+        // Use a slightly smaller radius for horizontal movement to prevent getting stuck
+        const horizontalRadius = playerRadius * 0.9;
+        const playerBounds = new THREE.Sphere(position, horizontalRadius);
+        
+        // Check for collision
+        if (objectBox.intersectsSphere(playerBounds)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error("Error in collision detection:", error);
+    return false; // Prevent game from crashing on collision errors
+  }
+}
+
+/**
+ * Special collision handler for bridge colliders created by bridgeUtils.js
+ */
+function checkBridgeColliderCollision(position, bridgeObject) {
+  try {
+    // Get the bridge's world matrix to transform points
+    const bridgeMatrix = bridgeObject.matrixWorld.clone();
+    const bridgeInverseMatrix = new THREE.Matrix4().copy(bridgeMatrix).invert();
+    
+    // Transform player position to bridge's local space
+    const localPosition = position.clone().applyMatrix4(bridgeInverseMatrix);
+    
+    // Get dimensions from geometry
+    let width, height, depth;
+    if (bridgeObject.geometry && bridgeObject.geometry.parameters) {
+      width = bridgeObject.geometry.parameters.width || 1;
+      height = bridgeObject.geometry.parameters.height || 1;
+      depth = bridgeObject.geometry.parameters.depth || 1;
+    } else {
+      // Fallback if parameters not available
+      const box = new THREE.Box3().setFromObject(bridgeObject);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      width = size.x;
+      height = size.y;
+      depth = size.z;
+    }
+    
+    // In local coordinates of the bridge, bounds are simple
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const halfDepth = depth / 2;
+    
+    // Allow standing on top of the bridge collider for smoother movement
+    if (localPosition.y > halfHeight && 
+        Math.abs(localPosition.x) < halfWidth && 
+        Math.abs(localPosition.z) < halfDepth) {
+      return false;
+    }
+    
+    // Check if player is within the collider bounds
+    const collisionRadius = playerRadius * 0.9;
+    if (Math.abs(localPosition.x) < halfWidth + collisionRadius &&
+        Math.abs(localPosition.y) < halfHeight + collisionRadius &&
+        Math.abs(localPosition.z) < halfDepth + collisionRadius) {
+      
+      // Special case for the top surface
+      const distToTop = localPosition.y - halfHeight;
+      if (distToTop > -0.2 && distToTop < collisionRadius) {
+        return false;  // Allow walking on top
+      }
+      
+      return true;  // Collision with sides or bottom
+    }
+    
+    return false;
+  } catch (error) {
+    console.error("Bridge collider collision error:", error);
+    return false;
+  }
+}
+
+/**
+ * Performs accurate collision detection with a bridge hitbox
+ * @param {THREE.Vector3} position - Player position
+ * @param {THREE.Mesh} bridgeObject - Bridge hitbox mesh
+ * @returns {boolean} Whether collision occurred
+ */
+function checkBridgeCollision(position, bridgeObject) {
+  try {
+    // Get the bridge's world matrix to transform points
+    const bridgeMatrix = bridgeObject.matrixWorld.clone();
+    const bridgeInverseMatrix = new THREE.Matrix4().copy(bridgeMatrix).invert();
+    
+    // Transform player position to bridge's local space
+    const localPosition = position.clone().applyMatrix4(bridgeInverseMatrix);
+    
+    // Get dimensions from geometry safely
+    let width, height, depth;
+    if (bridgeObject.geometry && bridgeObject.geometry.parameters) {
+      width = bridgeObject.geometry.parameters.width || 1;
+      height = bridgeObject.geometry.parameters.height || 1;
+      depth = bridgeObject.geometry.parameters.depth || 1;
+    } else {
+      // Fallback if parameters not available
+      const box = new THREE.Box3().setFromObject(bridgeObject);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      width = size.x;
+      height = size.y;
+      depth = size.z;
+    }
+    
+    // In local coordinates of the bridge, bounds are simple
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const halfDepth = depth / 2;
+    
+    // Special case: If we're above the bridge and within its XZ boundaries, don't collide
+    // This allows us to walk on top of the bridge
+    if (localPosition.y > halfHeight && 
+        Math.abs(localPosition.x) < halfWidth && 
+        Math.abs(localPosition.z) < halfDepth) {
+      return false;
+    }
+    
+    // Standard collision check with adjusted radius
+    const collisionRadius = playerRadius * 0.9;
+    
+    // Check if player is within the bridge bounds (considering radius)
+    // Fixed the missing upper bound check for z-coordinate
+    if (localPosition.x > -halfWidth - collisionRadius && 
+        localPosition.x < halfWidth + collisionRadius &&
+        localPosition.y > -halfHeight - collisionRadius && 
+        localPosition.y < halfHeight + collisionRadius &&
+        localPosition.z > -halfDepth - collisionRadius && 
+        localPosition.z < halfDepth + collisionRadius) {
+      
+      // Calculate distance to the top face of the bridge
+      const distToTop = localPosition.y - halfHeight;
+      
+      // If we're very close to the top surface, don't count as collision
+      // This allows for smoother walking on the bridge
+      if (distToTop > -0.2 && distToTop < collisionRadius) {
+        return false;
+      }
+      
+      // For other faces, collision applies
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error("Bridge collision error:", error);
+    return false;
+  }
+}
+
+// Add a dedicated function to detect standing on bridges
+function checkBridgeSurface(feetPosition, bridgeObject) {
+  try {
+    // Handle specialized bridge colliders
+    if (bridgeObject.userData && bridgeObject.userData.isBridgeCollider) {
+      return checkBridgeColliderSurface(feetPosition, bridgeObject);
+    }
+    
+    // Get the bridge's world matrix to transform points
+    const bridgeMatrix = bridgeObject.matrixWorld.clone();
+    const bridgeInverseMatrix = new THREE.Matrix4().copy(bridgeMatrix).invert();
+    
+    // Transform feet position to bridge's local space
+    const localPosition = feetPosition.clone().applyMatrix4(bridgeInverseMatrix);
+    
+    // Get bridge dimensions
+    let width, height, depth;
+    if (bridgeObject.geometry.parameters) {
+      width = bridgeObject.geometry.parameters.width;
+      height = bridgeObject.geometry.parameters.height;
+      depth = bridgeObject.geometry.parameters.depth;
+    } else {
+      const box = new THREE.Box3().setFromObject(bridgeObject);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      width = size.x;
+      height = size.y;
+      depth = size.z;
+    }
+    
+    // In local coordinates of the bridge, bounds are simple
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const halfDepth = depth / 2;
+    
+    // Check if feet are directly above the bridge and close to its surface
+    const isOnBridge = Math.abs(localPosition.x) < halfWidth &&
+                       Math.abs(localPosition.z) < halfDepth &&
+                       Math.abs(localPosition.y - halfHeight) < 2.0; // Within 2 units of the top surface
+    
+    if (isOnBridge) {
+      // Transform the top surface position back to world space to get the correct Y
+      const topLocalPos = new THREE.Vector3(localPosition.x, halfHeight, localPosition.z);
+      const worldPos = topLocalPos.applyMatrix4(bridgeMatrix);
+      
+      return {
+        isOnBridge: true, 
+        surfaceY: worldPos.y
+      };
+    }
+    
+    return { isOnBridge: false };
+  } catch (error) {
+    console.error("Bridge surface check error:", error);
+    return { isOnBridge: false };
+  }
+}
+
+/**
+ * Special handling for bridge colliders created in bridgeUtils.js
+ */
+function checkBridgeColliderSurface(feetPosition, bridgeObject) {
+  try {
+    // Get the bridge's world matrix to transform points
+    const bridgeMatrix = bridgeObject.matrixWorld.clone();
+    const bridgeInverseMatrix = new THREE.Matrix4().copy(bridgeMatrix).invert();
+    
+    // Transform feet position to bridge's local space
+    const localPosition = feetPosition.clone().applyMatrix4(bridgeInverseMatrix);
+    
+    // Get dimensions safely
+    let width, height, depth;
+    if (bridgeObject.geometry && bridgeObject.geometry.parameters) {
+      width = bridgeObject.geometry.parameters.width || 1;
+      height = bridgeObject.geometry.parameters.height || 1;
+      depth = bridgeObject.geometry.parameters.depth || 1;
+    } else {
+      const box = new THREE.Box3().setFromObject(bridgeObject);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      width = size.x;
+      height = size.y;
+      depth = size.z;
+    }
+    
+    // In local coordinates of the bridge, bounds are simple
+    const halfWidth = width / 2;
+    const halfHeight = height / 2;
+    const halfDepth = depth / 2;
+    
+    // Check if feet are directly above the bridge and close to its surface
+    const isOnBridge = Math.abs(localPosition.x) < halfWidth &&
+                       Math.abs(localPosition.z) < halfDepth &&
+                       Math.abs(localPosition.y - halfHeight) < 2.0;
+    
+    if (isOnBridge) {
+      // Transform the top surface position back to world space
+      const topLocalPos = new THREE.Vector3(localPosition.x, halfHeight, localPosition.z);
+      const worldPos = topLocalPos.applyMatrix4(bridgeMatrix);
+      
+      return {
+        isOnBridge: true,
+        surfaceY: worldPos.y
+      };
+    }
+    
+    return { isOnBridge: false };
+  } catch (error) {
+    console.error("Bridge collider surface check error:", error);
+    return { isOnBridge: false };
+  }
+}
+
+function animatePlayer() {
+  animationFrameId = requestAnimationFrame(animatePlayer);
+
+  const delta = clock.getDelta();
+  
+  // Apply friction to horizontal movement
+  velocity.x -= velocity.x * 10.0 * delta;
+  velocity.z -= velocity.z * 10.0 * delta;
+
+  // Calculate movement direction
+  direction.z = Number(moveForward) - Number(moveBackward);
+  direction.x = Number(moveRight) - Number(moveLeft);
+  direction.normalize();
+
+  // Apply movement forces
+  const speed = 400.0;
+  if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
+  if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+
+  // Apply gravity
+  velocity.y -= gravity * delta;
+
+  // Get the controls object for consistent movement
+  const controlsObject = controls.getObject();
+  
+  // Store original position for collision rollback
+  const originalPosition = controlsObject.position.clone();
+  
+  // Apply horizontal movement
+  controls.moveRight(-velocity.x * delta);
+  controls.moveForward(-velocity.z * delta);
+  
+  // Check collision after horizontal movement
+  if (checkCollision(controlsObject.position)) {
+    // Rollback if collision detected
+    controlsObject.position.copy(originalPosition);
+    // Add a small push-away vector from collision to prevent sticking
+    velocity.x *= -0.2;
+    velocity.z *= -0.2;
+  }
+  
+  // Apply vertical movement
+  controlsObject.position.y += velocity.y * delta;
+  
+  // Check vertical collision separately for better control
+  if (checkCollision(controlsObject.position)) {
+    // Vertical collision - check if we're moving up or down
+    if (velocity.y > 0) {
+      // Hit ceiling - stop upward movement
+      velocity.y = 0;
+    } else {
+      // Hit ground/platform - stop falling
+      velocity.y = 0;
+      // Restore position to before vertical movement
+      controlsObject.position.y = originalPosition.y;
+    }
+  }
+
+  // Check specifically for floor collision
+  let isOnFloor = false;
+  let groundY = -Infinity; // Track the highest ground position
+  
+  for (const object of collidableObjects) {
+    try {
+      // Special handling for bridge colliders from bridgeUtils.js
+      if (object.userData && object.userData.isBridgeCollider) {
+        const feetPosition = new THREE.Vector3(
+          controlsObject.position.x,
+          controlsObject.position.y - playerHeight,
+          controlsObject.position.z
+        );
+        
+        const bridgeResult = checkBridgeColliderSurface(feetPosition, object);
+        
+        if (bridgeResult.isOnBridge) {
+          isOnFloor = true;
+          
+          if (bridgeResult.surfaceY > groundY) {
+            groundY = bridgeResult.surfaceY;
+          }
+        }
+        
+        continue;
+      }
+      
+      // Special handling for bridge surfaces
+      if (object.userData && (object.userData.type === 'bridgeHitbox' || object.userData.bridgeHitbox === true)) {
+        // Calculate feet position
+        const feetPosition = new THREE.Vector3(
+          controlsObject.position.x,
+          controlsObject.position.y - playerHeight,
+          controlsObject.position.z
+        );
+        
+        // Check if standing on bridge
+        const bridgeResult = checkBridgeSurface(feetPosition, object);
+        
+        if (bridgeResult.isOnBridge) {
+          isOnFloor = true;
+          
+          // Bridge top surface might be higher than current ground
+          if (bridgeResult.surfaceY > groundY) {
+            groundY = bridgeResult.surfaceY;
+          }
+        }
+      }
+      
+      // Special handling for cylinders as standing surfaces
+      if (object.geometry instanceof THREE.CylinderGeometry) {
+        const cylinderPosition = object.position.clone();
+        const radius = object.geometry.parameters.radiusTop;
+        const cylinderHeight = object.geometry.parameters.height;
+        const cylinderTop = cylinderPosition.y + cylinderHeight / 2;
+        
+        // Check if player is above the cylinder
+        const horizontalPosition = controlsObject.position.clone();
+        horizontalPosition.y = 0;
+        
+        const horizontalCylinderPosition = cylinderPosition.clone();
+        horizontalCylinderPosition.y = 0;
+        
+        // Get horizontal distance to cylinder center
+        const distance = horizontalPosition.distanceTo(horizontalCylinderPosition);
+        
+        // If player is above the cylinder and close to its top surface
+        if (distance < radius && 
+            Math.abs(controlsObject.position.y - playerHeight - cylinderTop) < 2.0) {
+          isOnFloor = true;
+          
+          if (cylinderTop > groundY) {
+            groundY = cylinderTop;
+          }
+        }
+      }
+      // Regular floor detection for other objects
+      else if (object.geometry) {
+        // Get object bounds
+        const objectBox = new THREE.Box3().setFromObject(object);
+        
+        // Use a larger sphere for more stable floor detection
+        const feetPosition = new THREE.Vector3(
+          controlsObject.position.x,
+          controlsObject.position.y - playerHeight * 0.9,
+          controlsObject.position.z
+        );
+        const feetBounds = new THREE.Sphere(feetPosition, 1.0);
+        
+        // Check for collision with feet
+        if (objectBox.intersectsSphere(feetBounds)) {
+          // Check if we're above the object's top surface (with a small margin)
+          const objectTop = objectBox.max.y;
+          const playerBottomY = controlsObject.position.y - playerHeight;
+          
+          if (playerBottomY >= objectTop - 2.0) { // 2.0 is a tolerance margin
+            isOnFloor = true;
+            
+            // Find the highest ground to stand on
+            if (objectTop > groundY) {
+              groundY = objectTop;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error in floor detection:", error);
+      // Continue checking other objects even if one fails
+      continue;
+    }
+  }
+  
+  // If we're on a floor, snap to the correct height
+  if (isOnFloor) {
+    // Only adjust position if we're falling or very close to the ground
+    if (velocity.y <= 0) {
+      velocity.y = 0;
+      // Position exactly at playerHeight above the ground
+      controlsObject.position.y = groundY + playerHeight;
+    }
+  }
+
+  // Only allow jumping when on floor and not already jumping
+  canJump = isOnFloor && velocity.y <= 0;
+
+  // Reset jump count when on floor
+  if (isOnFloor) {
+    jumpCount = 0;
+  }
+
+  // Update player collider position if needed
+  if (playerCollider) {
+    // Make the collider always visible through objects
+    playerCollider.renderOrder = 999;
+    playerCollider.material.depthTest = false;
+  }
+
+  // Render the scene
+  renderer.render(scene, camera);
+}

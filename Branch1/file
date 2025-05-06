@@ -1,0 +1,9 @@
+Fluxo de processamento
+
+```mermaid
+flowchart LR
+    %% Curso[Criar um Curso]
+    Utilizador -- JSON File --> Loc(Cáculo de localizações) --
+    World Generation File --> Build(Funções de Construção) --
+    3d World --> Rendererização
+```
