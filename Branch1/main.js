@@ -282,7 +282,7 @@ function load_map(map){
   const body = createSimpleCylinder(
     location.x,
     location.z,
-    location.y*300,
+    location.y,
     radius,
   );
 
