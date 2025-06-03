@@ -23,10 +23,24 @@
       font-family: monospace;
       pointer-events: none;
     }
+    #controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 50;
+      display: flex;
+      gap: 10px;
+    }
+    #fileInput {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div id="debug">Loading...</div>
+  <div id="controls"></div>
+    <input type="file" id="fileInput" accept=".json" />
+  </div>
   <script>
     // Show basic error handling on page
     window.addEventListener('error', function(event) {

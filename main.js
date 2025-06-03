@@ -19,6 +19,9 @@ export const collidableObjects = [];
 export const playerHeight = 10;
 export const playerRadius = 2;
 
+// Global variable to store custom JSON data
+let customWorldData = null;
+
 // Initialize the scene
 init();
 
@@ -40,6 +43,9 @@ function init() {
   // Lighting
   setupLights();
   
+  // Set up file upload functionality
+  setupFileUpload();
+  
   // Create level using NEW system
   createLevelWithSpreader();
   
@@ -52,12 +58,13 @@ function init() {
   // Add key listener for hitbox toggling
   window.addEventListener('keydown', onKeyDown);
   
+  // Expose reset function globally for pause menu access
+  window.resetToDefaultWorld = resetToDefaultWorld;
+  
   // Import and set up player AFTER scene is ready to avoid circular dependencies
   import('./player.js').then(playerModule => {
     playerModule.setupPlayer();
     console.log("Player setup complete");
-    
-    // Don't call animate() here - player.js handles the render loop
   }).catch(error => {
     console.error("Error loading player module:", error);
   });
@@ -172,26 +179,128 @@ function setupLights() {
   scene.add(directionalLight);
 }
 
+function setupFileUpload() {
+  const fileInput = document.getElementById('fileInput');
+
+  fileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/json') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const jsonData = JSON.parse(e.target.result);
+          console.log('Loaded JSON data:', jsonData);
+          
+          // Validate the JSON structure
+          if (validateJsonStructure(jsonData)) {
+            customWorldData = jsonData;
+            regenerateWorld();
+            // Show success message
+            showMessage('World loaded successfully!', 'success');
+            
+            // Dispatch event to notify that world was reloaded
+            document.dispatchEvent(new CustomEvent('worldReloaded', {
+              detail: { source: 'upload', data: jsonData }
+            }));
+          } else {
+            showMessage('Invalid JSON structure. Please provide a valid tree structure.', 'error');
+          }
+        } catch (error) {
+          console.error('Error parsing JSON:', error);
+          showMessage('Error parsing JSON file. Please check the file format.', 'error');
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      showMessage('Please select a valid JSON file.', 'error');
+    }
+    
+    // Clear the input so the same file can be selected again
+    fileInput.value = '';
+  });
+}
+
+function validateJsonStructure(data) {
+  // Check if it's an array with at least one element
+  if (!Array.isArray(data) || data.length === 0) {
+    return false;
+  }
+
+  // Validate the root node structure
+  const rootNode = data[0];
+  if (!rootNode.id || !rootNode.type || !rootNode.data || !rootNode.data.label) {
+    return false;
+  }
+
+  // Recursively validate children
+  function validateNode(node) {
+    if (!node.id || !node.type || !node.data || !node.data.label) {
+      return false;
+    }
+
+    if (node.children && Array.isArray(node.children)) {
+      return node.children.every(child => validateNode(child));
+    }
+
+    return true;
+  }
+
+  return validateNode(rootNode);
+}
+
+function regenerateWorld() {
+  // Clear existing world objects (keep skybox and lights)
+  const objectsToRemove = [];
+  scene.traverse((child) => {
+    // Remove cylinders, bridges, and other world objects but keep lights and skybox
+    if (child.isMesh && 
+        child.geometry && 
+        (child.geometry.type === 'CylinderGeometry' || 
+         child.geometry.type === 'BoxGeometry') &&
+        !child.material.uniforms) { // Exclude skybox (has shader uniforms)
+      objectsToRemove.push(child);
+    }
+  });
+
+  objectsToRemove.forEach(obj => {
+    scene.remove(obj);
+    // Also remove from collidableObjects array
+    const index = collidableObjects.indexOf(obj);
+    if (index > -1) {
+      collidableObjects.splice(index, 1);
+    }
+  });
+
+  // Reset player position and velocity properly
+  if (controls.getObject) {
+    const controlsObject = controls.getObject();
+    controlsObject.position.set(0, playerHeight, 0);
+    
+    // Reset camera rotation
+    camera.rotation.set(0, 0, 0);
+    
+    // Reset velocity if player module is loaded
+    if (window.resetPlayerState) {
+      window.resetPlayerState();
+    }
+  }
+
+  // Generate new world with custom data
+  createLevelWithSpreader();
+  
+  console.log('World regenerated with custom JSON data');
+}
+
 // New function to create level using the Spreader2 layout
 async function createLevelWithSpreader() {
     console.log("Creating level using Spreader2 layout system...");
 
-    // Remove the default floor creation - no floor needed
-    // const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 });
-    // const floorGeometry = new THREE.PlaneGeometry(2000, 2000);
-    // const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    // floor.rotation.x = -Math.PI / 2;
-    // floor.position.y = -50;
-    // floor.receiveShadow = true;
-    // scene.add(floor);
-    // collidableObjects.push(floor);
-
-    // Generate layout data using the new system from WorldGenerator.js
-    const layoutData = generateFromDefaultFormat(); // Uses exampleInput from WorldGenerator.js by default
+    // Generate layout data using custom data if available, otherwise use default
+    const rawData = customWorldData || undefined; // Let generateFromDefaultFormat use its default
+    const layoutData = generateFromDefaultFormat(rawData);
 
     if (layoutData) {
         console.log("Layout data from Spreader2 received:", layoutData);
-        // The root of the layoutData is the first "main" node.
         load_map(layoutData);
     } else {
         console.error("Failed to generate layout data using Spreader2.");
@@ -225,7 +334,7 @@ function setupPointerLock() {
   overlay.style.color = '#fff';
   overlay.style.fontSize = '24px';
   overlay.style.zIndex = '100';
-  overlay.innerHTML = '<p>Click to play</p><p>WASD = Move, SPACE = Jump, MOUSE = Look around</p><p>Press ENTER to start</p>';
+  overlay.innerHTML = '<p>Click to play</p><p>WASD = Move, SPACE = Jump, MOUSE = Look around</p><p>Press ENTER to start</p><p style="font-size: 18px; margin-top: 20px;">Press ESC anytime to access the pause menu</p>';
   document.body.appendChild(overlay);
   
   // Function to start the game
@@ -270,6 +379,54 @@ function onKeyDown(event) {
   if (event.key === 'h' || event.key === 'H') {
     toggleHitboxVisibility();
   }
+}
+
+function resetToDefaultWorld() {
+  customWorldData = null;
+  regenerateWorld();
+  showMessage('World reset to default!', 'success');
+  
+  // Dispatch event to notify that world was reloaded
+  document.dispatchEvent(new CustomEvent('worldReloaded', {
+    detail: { source: 'reset', data: null }
+  }));
+}
+
+function showMessage(text, type = 'info') {
+  // Create temporary message overlay
+  const messageDiv = document.createElement('div');
+  messageDiv.style.position = 'absolute';
+  messageDiv.style.top = '20px';
+  messageDiv.style.left = '50%';
+  messageDiv.style.transform = 'translateX(-50%)';
+  messageDiv.style.padding = '10px 20px';
+  messageDiv.style.borderRadius = '5px';
+  messageDiv.style.color = 'white';
+  messageDiv.style.fontSize = '16px';
+  messageDiv.style.zIndex = '2000';
+  messageDiv.style.pointerEvents = 'none';
+  
+  // Set color based on type
+  switch(type) {
+    case 'success':
+      messageDiv.style.backgroundColor = 'rgba(76, 175, 80, 0.9)';
+      break;
+    case 'error':
+      messageDiv.style.backgroundColor = 'rgba(244, 67, 54, 0.9)';
+      break;
+    default:
+      messageDiv.style.backgroundColor = 'rgba(33, 150, 243, 0.9)';
+  }
+  
+  messageDiv.textContent = text;
+  document.body.appendChild(messageDiv);
+  
+  // Auto-remove after 3 seconds
+  setTimeout(() => {
+    if (messageDiv.parentNode) {
+      messageDiv.parentNode.removeChild(messageDiv);
+    }
+  }, 3000);
 }
 
 // load_map function adapted for Spreader2's output

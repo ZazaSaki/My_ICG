@@ -27,6 +27,7 @@ let animationFrameId;
 let isPaused = false;
 let fotoModeEnabled = false;
 let pauseOverlay;
+let pauseMenu;
 
 export function setupPlayer() {
   console.log("Setting up player");
@@ -42,8 +43,38 @@ export function setupPlayer() {
   // Create pause overlay
   createPauseOverlay();
   
+  // Expose reset function globally
+  window.resetPlayerState = resetPlayerState;
+  
   // Start animation loop
   animatePlayer();
+}
+
+// Add function to reset player state
+function resetPlayerState() {
+  console.log("Resetting player state");
+  
+  // Reset all movement variables
+  moveForward = false;
+  moveBackward = false;
+  moveLeft = false;
+  moveRight = false;
+  canJump = true;
+  jumpCount = 0;
+  
+  // Reset velocity
+  velocity.set(0, 0, 0);
+  
+  // Reset direction
+  direction.set(0, 0, 0);
+  
+  // Reset physics state
+  isPaused = false;
+  
+  // Hide pause overlay if shown
+  if (pauseOverlay) {
+    pauseOverlay.style.display = 'none';
+  }
 }
 
 function createPauseOverlay() {
@@ -53,22 +84,133 @@ function createPauseOverlay() {
   pauseOverlay.style.left = '0';
   pauseOverlay.style.right = '0';
   pauseOverlay.style.bottom = '0';
-  pauseOverlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+  pauseOverlay.style.backgroundColor = 'rgba(0,0,0,0.8)';
   pauseOverlay.style.display = 'none';
   pauseOverlay.style.flexDirection = 'column';
   pauseOverlay.style.justifyContent = 'center';
   pauseOverlay.style.alignItems = 'center';
   pauseOverlay.style.color = '#fff';
-  pauseOverlay.style.fontSize = '48px';
+  pauseOverlay.style.fontSize = '24px';
   pauseOverlay.style.zIndex = '1000';
-  pauseOverlay.innerHTML = '<p>PAUSED</p><p style="font-size: 24px;">Press ESC to resume</p>';
+  
+  // Create pause menu
+  pauseMenu = document.createElement('div');
+  pauseMenu.style.backgroundColor = 'rgba(0,0,0,0.9)';
+  pauseMenu.style.padding = '30px';
+  pauseMenu.style.borderRadius = '10px';
+  pauseMenu.style.border = '2px solid #fff';
+  pauseMenu.style.textAlign = 'center';
+  pauseMenu.style.minWidth = '300px';
+  
+  pauseMenu.innerHTML = `
+    <h2 style="margin-top: 0; color: #fff;">PAUSED</h2>
+    <div style="margin: 20px 0;">
+      <button id="resumeBtn" style="
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        margin: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        min-width: 120px;
+      ">Resume</button>
+    </div>
+    <div style="margin: 20px 0;">
+      <button id="uploadJsonBtn" style="
+        background-color: #2196F3;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        margin: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        min-width: 120px;
+      ">Upload JSON</button>
+    </div>
+    <div style="margin: 20px 0;">
+      <button id="resetWorldBtn" style="
+        background-color: #ff6b6b;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        margin: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        min-width: 120px;
+      ">Reset World</button>
+    </div>
+    <div style="margin-top: 30px; font-size: 14px; color: #ccc;">
+      <p>Controls:</p>
+      <p>WASD - Move | Space - Jump | Mouse - Look</p>
+      <p>P - Toggle Photo Mode | ESC - Pause Menu</p>
+      <p>H - Toggle Hitboxes</p>
+    </div>
+  `;
+  
+  pauseOverlay.appendChild(pauseMenu);
   document.body.appendChild(pauseOverlay);
+  
+  // Add event listeners for menu buttons
+  setupPauseMenuListeners();
+}
+
+function setupPauseMenuListeners() {
+  document.getElementById('resumeBtn').addEventListener('click', () => {
+    togglePause();
+  });
+  
+  document.getElementById('uploadJsonBtn').addEventListener('click', () => {
+    // Trigger the file input
+    document.getElementById('fileInput').click();
+  });
+  
+  document.getElementById('resetWorldBtn').addEventListener('click', () => {
+    // Reset to default world
+    if (window.resetToDefaultWorld) {
+      window.resetToDefaultWorld();
+    }
+    togglePause(); // Resume after reset
+  });
+  
+  // Listen for successful file upload to close menu and reload
+  document.addEventListener('worldReloaded', () => {
+    console.log("World reloaded event received");
+    if (isPaused) {
+      togglePause(); // Close pause menu after successful upload
+    }
+    // Small delay to ensure world is fully loaded before resuming physics
+    setTimeout(() => {
+      resetPlayerState();
+    }, 100);
+  });
+  
+  // Add hover effects
+  const buttons = pauseMenu.querySelectorAll('button');
+  buttons.forEach(button => {
+    button.addEventListener('mouseenter', () => {
+      button.style.opacity = '0.8';
+      button.style.transform = 'scale(1.05)';
+    });
+    
+    button.addEventListener('mouseleave', () => {
+      button.style.opacity = '1';
+      button.style.transform = 'scale(1)';
+    });
+  });
 }
 
 function togglePause() {
   isPaused = !isPaused;
   if (isPaused) {
     pauseOverlay.style.display = 'flex';
+    // Lock the pointer to prevent camera movement while paused
+    if (controls.isLocked) {
+      controls.unlock();
+    }
   } else {
     pauseOverlay.style.display = 'none';
   }
@@ -114,7 +256,7 @@ function onKeyDown(event) {
   }
   
   if (event.code === 'Escape') {
-    if (fotoModeEnabled) {
+    if (fotoModeEnabled || !controls.isLocked) {
       togglePause();
     }
     return;
@@ -124,10 +266,22 @@ function onKeyDown(event) {
   if (isPaused) return;
   
   switch (event.code) {
-    case 'KeyW': moveForward = true; break;
-    case 'KeyA': moveLeft = true; break;
-    case 'KeyS': moveBackward = true; break;
-    case 'KeyD': moveRight = true; break;
+    case 'KeyW': 
+      moveForward = true; 
+      console.log('W pressed - moveForward:', moveForward);
+      break;
+    case 'KeyA': 
+      moveLeft = true; 
+      console.log('A pressed - moveLeft:', moveLeft);
+      break;
+    case 'KeyS': 
+      moveBackward = true; 
+      console.log('S pressed - moveBackward:', moveBackward);
+      break;
+    case 'KeyD': 
+      moveRight = true; 
+      console.log('D pressed - moveRight:', moveRight);
+      break;
     case 'Space': 
       if (canJump || jumpCount < maxJumps) {
         velocity.y += jumpHeight;
@@ -143,10 +297,22 @@ function onKeyUp(event) {
   if (isPaused) return;
   
   switch (event.code) {
-    case 'KeyW': moveForward = false; break;
-    case 'KeyA': moveLeft = false; break;
-    case 'KeyS': moveBackward = false; break;
-    case 'KeyD': moveRight = false; break;
+    case 'KeyW': 
+      moveForward = false; 
+      console.log('W released - moveForward:', moveForward);
+      break;
+    case 'KeyA': 
+      moveLeft = false; 
+      console.log('A released - moveLeft:', moveLeft);
+      break;
+    case 'KeyS': 
+      moveBackward = false; 
+      console.log('S released - moveBackward:', moveBackward);
+      break;
+    case 'KeyD': 
+      moveRight = false; 
+      console.log('D released - moveRight:', moveRight);
+      break;
   }
 }
 
@@ -493,32 +659,53 @@ function animatePlayer() {
 
   const delta = clock.getDelta();
   
+  // Clamp delta to prevent large jumps that could cause crashes
+  const clampedDelta = Math.min(delta, 0.1);
+  
   // Apply friction to horizontal movement
-  velocity.x -= velocity.x * 10.0 * delta;
-  velocity.z -= velocity.z * 10.0 * delta;
+  velocity.x -= velocity.x * 10.0 * clampedDelta;
+  velocity.z -= velocity.z * 10.0 * clampedDelta;
 
   // Calculate movement direction
   direction.z = Number(moveForward) - Number(moveBackward);
   direction.x = Number(moveRight) - Number(moveLeft);
   direction.normalize();
 
+  // Debug logging for movement
+  if (moveLeft || moveRight || moveForward || moveBackward) {
+    console.log('Movement states:', { moveLeft, moveRight, moveForward, moveBackward });
+    console.log('Direction calculated:', { x: direction.x, z: direction.z });
+    console.log('Velocity before application:', { x: velocity.x, z: velocity.z });
+  }
+
   // Apply movement forces
   const speed = 400.0;
-  if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
-  if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+  if (moveForward || moveBackward) velocity.z -= direction.z * speed * clampedDelta;
+  if (moveLeft || moveRight) velocity.x -= direction.x * speed * clampedDelta;
+
+  // Debug logging after force application
+  if (moveLeft || moveRight || moveForward || moveBackward) {
+    console.log('Velocity after forces:', { x: velocity.x, z: velocity.z });
+  }
 
   // Apply gravity
-  velocity.y -= gravity * delta;
+  velocity.y -= gravity * clampedDelta;
 
   // Get the controls object for consistent movement
   const controlsObject = controls.getObject();
+  
+  // Safety check to ensure controls object exists
+  if (!controlsObject) {
+    renderer.render(scene, camera);
+    return;
+  }
   
   // Store original position for collision rollback
   const originalPosition = controlsObject.position.clone();
   
   // Apply horizontal movement
-  controls.moveRight(-velocity.x * delta);
-  controls.moveForward(-velocity.z * delta);
+  controls.moveRight(-velocity.x * clampedDelta);
+  controls.moveForward(-velocity.z * clampedDelta);
   
   // Check collision after horizontal movement
   if (checkCollision(controlsObject.position)) {
@@ -530,7 +717,7 @@ function animatePlayer() {
   }
   
   // Apply vertical movement
-  controlsObject.position.y += velocity.y * delta;
+  controlsObject.position.y += velocity.y * clampedDelta;
   
   // Check vertical collision separately for better control
   if (checkCollision(controlsObject.position)) {
