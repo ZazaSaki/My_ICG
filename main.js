@@ -578,11 +578,12 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   
-  // Create material for the text
+  // Create material for the text - MAKE IT DOUBLE-SIDED
   const textMaterial = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
-    alphaTest: 0.1
+    alphaTest: 0.1,
+    side: THREE.DoubleSide // This makes it visible from both sides
   });
   
   // Create geometry for the text plane
@@ -606,6 +607,6 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
   }
   window.textMeshes.push(textMesh);
   
-  console.log(`Added text label "${text}" to cylinder`);
+  console.log(`Added double-sided text label "${text}" to cylinder`);
 }
 
