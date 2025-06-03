@@ -23,6 +23,11 @@ export const maxJumps = 30000;
 let playerCollider;
 let animationFrameId;
 
+// Foto mode variables
+let isPaused = false;
+let fotoModeEnabled = false;
+let pauseOverlay;
+
 export function setupPlayer() {
   console.log("Setting up player");
   document.addEventListener('keydown', onKeyDown);
@@ -34,8 +39,49 @@ export function setupPlayer() {
   // Create visual player collider
   createPlayerCollider();
   
+  // Create pause overlay
+  createPauseOverlay();
+  
   // Start animation loop
   animatePlayer();
+}
+
+function createPauseOverlay() {
+  pauseOverlay = document.createElement('div');
+  pauseOverlay.style.position = 'absolute';
+  pauseOverlay.style.top = '0';
+  pauseOverlay.style.left = '0';
+  pauseOverlay.style.right = '0';
+  pauseOverlay.style.bottom = '0';
+  pauseOverlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+  pauseOverlay.style.display = 'none';
+  pauseOverlay.style.flexDirection = 'column';
+  pauseOverlay.style.justifyContent = 'center';
+  pauseOverlay.style.alignItems = 'center';
+  pauseOverlay.style.color = '#fff';
+  pauseOverlay.style.fontSize = '48px';
+  pauseOverlay.style.zIndex = '1000';
+  pauseOverlay.innerHTML = '<p>PAUSED</p><p style="font-size: 24px;">Press ESC to resume</p>';
+  document.body.appendChild(pauseOverlay);
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  if (isPaused) {
+    pauseOverlay.style.display = 'flex';
+  } else {
+    pauseOverlay.style.display = 'none';
+  }
+}
+
+function toggleFotoMode() {
+  fotoModeEnabled = !fotoModeEnabled;
+  console.log(`Foto mode ${fotoModeEnabled ? 'enabled' : 'disabled'}`);
+  
+  // If foto mode is disabled and currently paused, unpause
+  if (!fotoModeEnabled && isPaused) {
+    togglePause();
+  }
 }
 
 /**
@@ -61,6 +107,22 @@ function createPlayerCollider() {
 }
 
 function onKeyDown(event) {
+  // Handle foto mode
+  if (event.code === 'KeyP') {
+    toggleFotoMode();
+    return;
+  }
+  
+  if (event.code === 'Escape') {
+    if (fotoModeEnabled) {
+      togglePause();
+    }
+    return;
+  }
+  
+  // Skip movement if paused
+  if (isPaused) return;
+  
   switch (event.code) {
     case 'KeyW': moveForward = true; break;
     case 'KeyA': moveLeft = true; break;
@@ -77,6 +139,9 @@ function onKeyDown(event) {
 }
 
 function onKeyUp(event) {
+  // Skip if paused
+  if (isPaused) return;
+  
   switch (event.code) {
     case 'KeyW': moveForward = false; break;
     case 'KeyA': moveLeft = false; break;
@@ -419,6 +484,12 @@ function checkBridgeColliderSurface(feetPosition, bridgeObject) {
 
 function animatePlayer() {
   animationFrameId = requestAnimationFrame(animatePlayer);
+
+  // Skip physics updates if paused
+  if (isPaused) {
+    renderer.render(scene, camera);
+    return;
+  }
 
   const delta = clock.getDelta();
   

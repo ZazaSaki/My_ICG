@@ -4,8 +4,9 @@ import { createSimpleCylinder } from './cylinderUtils.js';
 import { connectCylindersWithBridge, createCylinderNetwork } from './bridgeUtils.js';
 import { toggleHitboxVisibility } from './hitboxUtils.js';
 import { getChildrenOfNode, getChildrenKeysOfNode, hasChildren } from './nodeUtils.js';
-import { iterateDictionary, generateWorldStructureFromData } from './WorldGenerator.js';
-// import { readAndConvertFile } from './jsonConverter.js';
+
+// Import the NEW world generation entry point
+import { generateFromDefaultFormat } from './WorldGenerator.js';
 
 // Scene setup
 export const scene = new THREE.Scene();
@@ -39,8 +40,8 @@ function init() {
   // Lighting
   setupLights();
   
-  // Create level
-  createLevel();
+  // Create level using NEW system
+  createLevelWithSpreader();
   
   // Handle window resize
   window.addEventListener('resize', onWindowResize);
@@ -56,8 +57,7 @@ function init() {
     playerModule.setupPlayer();
     console.log("Player setup complete");
     
-    // Start rendering
-    animate();
+    // Don't call animate() here - player.js handles the render loop
   }).catch(error => {
     console.error("Error loading player module:", error);
   });
@@ -102,12 +102,6 @@ function testNodeUtils() {
   console.log("Does non-existent node have children?", hasChildren(testDict, 'nonExistent'));
   
   console.log("--- End of nodeUtils test ---");
-}
-
-// Animation loop
-function animate() {
-  requestAnimationFrame(animate);
-  renderer.render(scene, camera);
 }
 
 function setupLights() {
@@ -178,61 +172,30 @@ function setupLights() {
   scene.add(directionalLight);
 }
 
-function createLevel() {
-  // Materials
-  const floorMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0x808080,
-    roughness: 0.8 
-  });
-  
-  const wallMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0x8B4513,
-    roughness: 0.7 
-  });
-  
-  const cylinderMaterial = new THREE.MeshStandardMaterial({
-    color: 0x4682B4,
-    roughness: 0.6
-  });
-  
-  const bridgeMaterial = new THREE.MeshStandardMaterial({
-    color: 0xA0522D,
-    roughness: 0.5
-  });
-  
-  // Floor
-  const floorGeometry = new THREE.PlaneGeometry(100, 100);
-  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = 0;
-  floor.receiveShadow = true;
-  scene.add(floor);
-  collidableObjects.push(floor);
-  
-  // // Create cylinders and store references
-  // const cylinder1 = createSimpleCylinder(-60, 50, 30, 60, cylinderMaterial);
-  // const cylinder2 = createSimpleCylinder(60, 7.5, -60, 20, cylinderMaterial);
-  // const cylinder3 = createSimpleCylinder(90, 5, 90, 20, cylinderMaterial);
-  
-  // // Method 1: Connect two specific cylinders with a bridge
-  // connectCylindersWithBridge(
-  //   cylinder1,
-  //   cylinder2,
-  //   20,    // bridge width
-  //   1,    // bridge thickness
-  //   0,    // height offset (from cylinder center)
-  //   bridgeMaterial
-  // );
-  
-  // // Method 2: Create a network of connected cylinders
-  // const cylinderNetwork = [cylinder2, cylinder3];
-  // createCylinderNetwork(
-  //   cylinderNetwork,
-  //   8,    // bridge width
-  //   0.8,  // bridge thickness
-  //   1,    // height offset (slightly above center of cylinders)
-  //   bridgeMaterial
-  // );
+// New function to create level using the Spreader2 layout
+async function createLevelWithSpreader() {
+    console.log("Creating level using Spreader2 layout system...");
+
+    // Remove the default floor creation - no floor needed
+    // const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 });
+    // const floorGeometry = new THREE.PlaneGeometry(2000, 2000);
+    // const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    // floor.rotation.x = -Math.PI / 2;
+    // floor.position.y = -50;
+    // floor.receiveShadow = true;
+    // scene.add(floor);
+    // collidableObjects.push(floor);
+
+    // Generate layout data using the new system from WorldGenerator.js
+    const layoutData = generateFromDefaultFormat(); // Uses exampleInput from WorldGenerator.js by default
+
+    if (layoutData) {
+        console.log("Layout data from Spreader2 received:", layoutData);
+        // The root of the layoutData is the first "main" node.
+        load_map(layoutData);
+    } else {
+        console.error("Failed to generate layout data using Spreader2.");
+    }
 }
 
 function createWall(x, y, z, width, height, depth, material) {
@@ -262,19 +225,36 @@ function setupPointerLock() {
   overlay.style.color = '#fff';
   overlay.style.fontSize = '24px';
   overlay.style.zIndex = '100';
-  overlay.innerHTML = '<p>Click to play</p><p>WASD = Move, SPACE = Jump, MOUSE = Look around</p>';
+  overlay.innerHTML = '<p>Click to play</p><p>WASD = Move, SPACE = Jump, MOUSE = Look around</p><p>Press ENTER to start</p>';
   document.body.appendChild(overlay);
   
-  overlay.addEventListener('click', function() {
+  // Function to start the game
+  function startGame() {
     controls.lock();
-  });
+  }
+  
+  overlay.addEventListener('click', startGame);
+  
+  // Add keyboard listener for Enter key
+  function handleOverlayKeydown(event) {
+    if (event.code === 'Enter' || event.code === 'NumpadEnter') {
+      startGame();
+    }
+  }
+  
+  // Add event listener when overlay is visible
+  document.addEventListener('keydown', handleOverlayKeydown);
   
   controls.addEventListener('lock', function() {
     overlay.style.display = 'none';
+    // Remove the keydown listener when game starts
+    document.removeEventListener('keydown', handleOverlayKeydown);
   });
   
   controls.addEventListener('unlock', function() {
     overlay.style.display = 'flex';
+    // Re-add the keydown listener when overlay shows again
+    document.addEventListener('keydown', handleOverlayKeydown);
   });
 }
 
@@ -292,72 +272,57 @@ function onKeyDown(event) {
   }
 }
 
-// Sample dictionary structure
-const worldStructure = {
-  "main": {
-    "branch1": {
-      "node1": {},
-      "node2": {
-        "material.h" : "wood",
-      }
-    },
-    "branch2": {
-      "node3": {}
-    }
+// load_map function adapted for Spreader2's output
+function load_map(mapNode) { // mapNode is a node { location, radius, connections, name, ... }
+  if (!mapNode || !mapNode.location) {
+    console.warn("load_map: Invalid mapNode received", mapNode);
+    return null;
   }
-};
 
-// Define a callback to process each node
-function processNode(key, value, radius) {
-  console.log(`Processing node: ${key}, radius: ${radius}`);
-  return { key, value, radius };
-}
+  const location = mapNode.location;
+  const radius = mapNode.radius || 10; // Default radius if not specified
 
-// Execute the world generator
-const resFdata =  await generateWorldStructureFromData();
-console.log("Generated world structure:", localStorage.getItem("worldStructure"));
-console.log("resFdata:", resFdata);
-console.log("resFdata:", resFdata.connections[0]);
+  // Coordinate mapping:
+  // Spreader2 X -> Three.js X (horizontal)
+  // Spreader2 Y -> Three.js Z (horizontal)
+  // Spreader2 Z -> Three.js Y (vertical height/depth)
+  const threeX = location.x;
+  const threeY_height = location.z + 20; // Reduced offset from 50 to 20
+  const threeZ = location.y;
 
-const result = iterateDictionary(worldStructure);
-console.log("file:", resFdata.connections[0]);
-console.log("Generated world structure:", result);
-
-load_map(result.connections[0]);
-
-function load_map(map){
-  const location = map.location;
-  location.z = location.z;
-  location.y = location.y;
-  const radius = map.radius;
-
-  // console.log("Loading map at location:", location, "with radius:", radius);
+  console.log(`Loading map node: ${mapNode.name || 'Unnamed'}, Radius: ${radius}`);
+  console.log(`  Spreader Coords: X=${location.x.toFixed(2)}, Y_horiz=${location.y.toFixed(2)}, Z_depth=${location.z.toFixed(2)}`);
+  console.log(`  Three.js Coords: X=${threeX.toFixed(2)}, Y_height=${threeY_height.toFixed(2)}, Z_depth=${threeZ.toFixed(2)}`);
   
+  const cylinderMaterial = new THREE.MeshStandardMaterial({
+    color: Math.random() * 0xffffff, // Random color for differentiation
+    roughness: 0.6,
+    metalness: 0.1
+  });
+
   const body = createSimpleCylinder(
-    location.x,
-    location.z,
-    location.y,
+    threeX,
+    threeY_height,
+    threeZ,
     radius,
+    cylinderMaterial
   );
 
-  console.log("body:", location);
-  // console.log("connections:", map.connections);
-  for (const elem in map.connections) {
-      const son = load_map(map.connections[elem]);
-      connectCylindersWithBridge(
-        body,
-        son,
-        20,    // bridge width
-        1,    // bridge thickness
-        0,    // height offset (from cylinder center)
-        new THREE.MeshStandardMaterial({
-          color: 0xA0522D,
-          roughness: 0.5
-        })
-      );
+  if (mapNode.connections && mapNode.connections.length > 0) {
+    for (const childNode of mapNode.connections) {
+        const childBody = load_map(childNode); // Recursive call
+        if (body && childBody) {
+            connectCylindersWithBridge(
+                body,
+                childBody,
+                Math.max(radius / 4, 8),    // Reduced bridge width (was radius/3, now radius/4) with minimum 8
+                1.5,           // Reduced bridge thickness for more elegant bridges
+                0,             // height offset for bridge (relative to cylinder centers)
+                new THREE.MeshStandardMaterial({ color: 0xA0522D, roughness: 0.7 })
+            );
+        }
+    }
   }
-
-  return body;
-
+  return body; // Return the Three.js object for this node
 }
 

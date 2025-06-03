@@ -1,0 +1,12 @@
+/* ...existing code... */
+#resetButton {
+    background-color: #ff6b6b;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-left: 10px;
+}
+/* ...existing code... */

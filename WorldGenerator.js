@@ -1,5 +1,7 @@
 import { getChildrenOfNode, hasChildren } from './nodeUtils.js';
 import { convertToWorldStructure } from './jsonConverter.js';
+import { layoutAndTransformTree, prepareTreeForLayout, layoutOptions as spreaderDefaultOptions } from './Spreader2.js';
+
 const worldTestFiles = {"layer 1" : {
     "branch 1" : {
         "level 1" : {
@@ -75,25 +77,40 @@ function addVectors(vector1, vector2) {
     };
 }
 
-export function iterateDictionary(
-    dict,
-    info = {
-        "restriction": (dtr(0),dtr(360)) , 
-        "start_location": true, 
-        "parent": null, 
-        "angle_fraction": 1, 
-        "angle_start": dtr(0),
-        "angle_end": dtr(360),
-        "z_angele": 0,
-        "parent_radius": 0,
-        "parent_location": {x : 0,y : 0,z : 0},
-        "parent_key": null,
+function getChildrenCount(dict) {
+    if (!(dict === 'object')) {
+        return 0;
     }
+    let children = 0;
+    for (const key in dict) {
+        if (typeof dict[key] === 'object' && dict[key] !== null) {
+            children++;
+        }
+    }
+    return children;
+}
+
+
+export function iterateDictionary(
+        dict,
+        info = {
+            "restriction": (dtr(0),dtr(360)) , 
+            "start_location": true, 
+            "parent": null, 
+            "angle_fraction": 1, 
+            "angle_start": dtr(0),
+            "angle_end": dtr(360),
+            "z_angele": 0,
+            "parent_radius": 0,
+            "parent_location": {x : 0,y : 0,z : 0},
+            "parent_key": null,
+        }
     ) {
     
     let connections_itetration = 0;
     let angle_start = info.angle_start;
     let angle_peace = (info.angle_end-info.angle_start)/info.angle_fraction;
+    
     console.log({
         angle_start,
         angle_end: info.angle_end,
@@ -101,17 +118,13 @@ export function iterateDictionary(
         angle_peace,
         info
     });
+    
     const z_angele = info.z_angele == 0 ? 10 : info.z_angele;
 
     // console.log({"info" : info})
     
     const childrenList = [];
-    let children = 0;
-    for (const key in dict) {
-        if (typeof dict[key] === 'object' && dict[key] !== null) {
-            children++;
-        }
-    }
+    const children = getChildrenCount(dict);
 
     for (const key in dict) {
         if (typeof dict[key] === 'object' && dict[key] !== null) {
@@ -124,7 +137,9 @@ export function iterateDictionary(
             // platform size definition
             const raio = (platform_radius(connections) + (info.start_location ? 0 : 1)) * scale;
             
-            const distance = minimal_hight/Math.sin(Math.abs(z_angele)) * scale;
+            // minimal between parent and child base od hight
+            const distance = (minimal_hight/Math.sin(Math.abs(z_angele)) * scale);
+
 
             const Bridge_vector  = polarToCartesian3D(
                 Math.PI/2 - z_angele,
@@ -134,7 +149,7 @@ export function iterateDictionary(
 
             console.log("angle information : ", key)
             console.log({
-                "name": key,
+                "Calculating values name": key,
                 angle_start,
                 local_angle_start,
                 local_angle_end,
@@ -236,81 +251,201 @@ const exampleInput = [
     {
       "id": "1",
       "type": "custom",
-      "position": { "x": -46.5, "y": 41 },
+      "position": {
+        "x": 277.5,
+        "y": -2.5
+      },
       "data": {
-        "label": "layer 1",
+        "label": "main",
         "description": "This is the root node.",
         "manuallyRelatedNodeIds": [],
-        "isCollapsed": false
+        "hasChildren": true
       },
       "children": [
         {
           "id": "node_7",
           "type": "custom",
-          "position": { "x": -161.25, "y": 192.625 },
+          "position": {
+            "x": 200.1875,
+            "y": 99.505859375
+          },
           "data": {
-            "label": "branch 1",
+            "label": "branch2",
             "description": "Description for node_7",
             "isCollapsed": false,
-            "manuallyRelatedNodeIds": []
+            "manuallyRelatedNodeIds": [],
+            "hasChildren": true
+          },
+          "children": [
+            {
+              "id": "node_10",
+              "type": "custom",
+              "position": {
+                "x": 87.1875,
+                "y": 192.505859375
+              },
+              "data": {
+                "label": "node 3",
+                "description": "Description for node_10",
+                "isCollapsed": false,
+                "manuallyRelatedNodeIds": [],
+                "hasChildren": true
+              },
+              "children": [
+                {
+                  "id": "node_11",
+                  "type": "custom",
+                  "position": {
+                    "x": 197.6875,
+                    "y": 320.505859375
+                  },
+                  "data": {
+                    "label": "New Node 11",
+                    "description": "Description for node_11",
+                    "isCollapsed": false,
+                    "manuallyRelatedNodeIds": [],
+                    "hasChildren": false
+                  }
+                },
+                {
+                  "id": "node_12",
+                  "type": "custom",
+                  "position": {
+                    "x": -21.3125,
+                    "y": 291.505859375
+                  },
+                  "data": {
+                    "label": "New Node 12",
+                    "description": "Description for node_12",
+                    "isCollapsed": false,
+                    "manuallyRelatedNodeIds": [],
+                    "hasChildren": false
+                  }
+                }
+              ]
+            },
+            {
+              "id": "node_13",
+              "type": "custom",
+              "position": {
+                "x": 301.17421875,
+                "y": 195.005859375
+              },
+              "data": {
+                "label": "New Node 13",
+                "description": "Description for node_13",
+                "isCollapsed": false,
+                "manuallyRelatedNodeIds": [],
+                "hasChildren": false
+              },
+              "children": [
+                {
+                  "id": "node_14",
+                  "type": "custom",
+                  "position": {
+                    "x": 404.17421875,
+                    "y": 322.005859375
+                  },
+                  "data": {
+                    "label": "New Node 14",
+                    "description": "Description for node_14",
+                    "isCollapsed": false,
+                    "manuallyRelatedNodeIds": [],
+                    "hasChildren": false
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "node_6",
+          "type": "custom",
+          "position": {
+            "x": 567.6875,
+            "y": 90.005859375
+          },
+          "data": {
+            "label": "branch1",
+            "description": "Description for node_6",
+            "isCollapsed": false,
+            "manuallyRelatedNodeIds": [],
+            "hasChildren": true
           },
           "children": [
             {
               "id": "node_8",
               "type": "custom",
-              "position": { "x": -249.75, "y": 301.125 },
+              "position": {
+                "x": 473.6875,
+                "y": 185.505859375
+              },
               "data": {
-                "label": "level 1",
+                "label": "node 1",
                 "description": "Description for node_8",
                 "isCollapsed": false,
-                "manuallyRelatedNodeIds": []
+                "manuallyRelatedNodeIds": [],
+                "hasChildren": false
               }
             },
             {
               "id": "node_9",
               "type": "custom",
-              "position": { "x": -71.75, "y": 300.125 },
+              "position": {
+                "x": 688.67421875,
+                "y": 193.505859375
+              },
               "data": {
-                "label": "level 2",
+                "label": "node 2",
                 "description": "Description for node_9",
                 "isCollapsed": false,
-                "manuallyRelatedNodeIds": []
-              }
-            }
-          ]
-        },
-        {
-          "id": "node_10",
-          "type": "custom",
-          "position": { "x": 110.75, "y": 196.125 },
-          "data": {
-            "label": "branch 2",
-            "description": "Description for node_10",
-            "isCollapsed": false,
-            "manuallyRelatedNodeIds": ["node_9"]
-          },
-          "children": [
-            {
-              "id": "node_11",
-              "type": "custom",
-              "position": { "x": 133.25, "y": 287.625 },
-              "data": {
-                "label": "level 1",
-                "description": "Description for node_11",
-                "isCollapsed": false,
-                "manuallyRelatedNodeIds": ["node_9"]
+                "manuallyRelatedNodeIds": [],
+                "hasChildren": false
               }
             }
           ]
         }
       ]
     }
-  ];
+  ]
 
 export function generateWorldStructureFromData() {
     const worldStructure = convertToWorldStructure(exampleInput);
     localStorage.setItem("worldStructure", JSON.stringify(worldStructure));
     const result = iterateDictionary(worldStructure);
     console.log("input structure:", worldStructure);
+    return result;
+}
+
+export function cleanDataTest() {
+    const structure = generateWorldStructureFromData();
+    return structure;
+}
+
+// --- NEW SYSTEM ENTRY POINT using Spreader2.js ---
+/**
+ * Generates world data using the Spreader2.js layout algorithm.
+ * @param {Array<object>} [rawData=exampleInput] - The raw tree data. Defaults to internal exampleInput.
+ * @param {object} [customOptions] - Optional layout options to override defaults from Spreader2.js.
+ * @returns {object|null} The structured tree with 3D layout data, or null on failure.
+ */
+export function generateFromDefaultFormat(rawData = exampleInput, customOptions) {
+    console.log("Spreader2 System: Received rawData for layout:", rawData);
+    const cleanData = prepareTreeForLayout(rawData);
+
+    if (!cleanData) {
+        console.error("Spreader2 System: Failed to clean data for layout.");
+        return null;
+    }
+    localStorage.setItem("cleanDataForSpreader", JSON.stringify(cleanData));
+    console.log("Spreader2 System: Cleaned data for layoutAndTransformTree:", cleanData);
+
+    // Use provided customOptions, or spreaderDefaultOptions imported from Spreader2.js, or empty object for Spreader2's internal defaults
+    const optionsToUse = customOptions || spreaderDefaultOptions || {};
+    console.log("Spreader2 System: Using layout options:", optionsToUse);
+
+    const result = layoutAndTransformTree(cleanData, optionsToUse);
+
+    console.log("Spreader2 System: Layout result:", result);
     return result;
 }
