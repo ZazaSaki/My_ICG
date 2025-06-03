@@ -682,6 +682,8 @@ function animatePlayer() {
 
   // Skip physics updates if paused
   if (isPaused) {
+    // Update text orientations even when paused
+    updateTextOrientations();
     renderer.render(scene, camera);
     return;
   }
@@ -899,6 +901,31 @@ function animatePlayer() {
     playerCollider.material.depthTest = false;
   }
 
+  // Update text orientations to face camera
+  updateTextOrientations();
+
   // Render the scene
   renderer.render(scene, camera);
+}
+
+/**
+ * Update text orientations to always face the camera
+ */
+function updateTextOrientations() {
+  if (window.textMeshes && camera) {
+    window.textMeshes.forEach(textMesh => {
+      if (textMesh && textMesh.parent) {
+        // Get world position of text
+        const worldPosition = new THREE.Vector3();
+        textMesh.getWorldPosition(worldPosition);
+        
+        // Make text look at camera
+        textMesh.lookAt(camera.position);
+        
+        // Prevent text from being upside down
+        textMesh.rotation.x = 0;
+        textMesh.rotation.z = 0;
+      }
+    });
+  }
 }

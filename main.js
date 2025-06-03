@@ -278,6 +278,11 @@ function regenerateWorld() {
   // Clear bridge tracking data for fresh start
   clearBridgeTracking();
 
+  // Clear text meshes tracking
+  if (window.textMeshes) {
+    window.textMeshes.length = 0;
+  }
+
   // Generate new world with custom data first to get root position
   createLevelWithSpreader();
   
@@ -482,6 +487,11 @@ function load_map(mapNode, isRoot = false) { // mapNode is a node { location, ra
     cylinderMaterial
   );
 
+  // Add text label to the cylinder
+  if (body) {
+    addTextToyCylinder(body, mapNode.name || mapNode.id || 'Node', radius);
+  }
+
   if (mapNode.connections && mapNode.connections.length > 0) {
     for (const childNode of mapNode.connections) {
         const childBody = load_map(childNode, false); // Recursive call, not root
@@ -498,5 +508,104 @@ function load_map(mapNode, isRoot = false) { // mapNode is a node { location, ra
     }
   }
   return body; // Return the Three.js object for this node
+}
+
+/**
+ * Add a text label to a cylinder
+ * @param {THREE.Mesh} cylinder - The cylinder to add text to
+ * @param {string} text - The text to display
+ * @param {number} cylinderRadius - The radius of the cylinder
+ */
+function addTextToyCylinder(cylinder, text, cylinderRadius) {
+  // Create canvas for text texture
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  
+  // Set canvas size based on text length and cylinder size
+  const canvasSize = Math.max(256, cylinderRadius * 8);
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
+  
+  // Configure text styling
+  const fontSize = Math.max(20, cylinderRadius * 2);
+  context.font = `bold ${fontSize}px Arial, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  
+  // Add background
+  context.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Add border
+  context.strokeStyle = '#333333';
+  context.lineWidth = 4;
+  context.strokeRect(0, 0, canvas.width, canvas.height);
+  
+  // Add text with stroke for better visibility
+  context.fillStyle = '#333333';
+  context.strokeStyle = '#ffffff';
+  context.lineWidth = 3;
+  
+  // Handle long text by wrapping
+  const maxWidth = canvas.width * 0.8;
+  const words = text.split(' ');
+  const lines = [];
+  let currentLine = words[0];
+  
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i];
+    const width = context.measureText(currentLine + ' ' + word).width;
+    if (width < maxWidth) {
+      currentLine += ' ' + word;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  lines.push(currentLine);
+  
+  // Draw each line
+  const lineHeight = fontSize * 1.2;
+  const startY = (canvas.height - (lines.length - 1) * lineHeight) / 2;
+  
+  lines.forEach((line, index) => {
+    const y = startY + index * lineHeight;
+    context.strokeText(line, canvas.width / 2, y);
+    context.fillText(line, canvas.width / 2, y);
+  });
+  
+  // Create texture from canvas
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  
+  // Create material for the text
+  const textMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    alphaTest: 0.1
+  });
+  
+  // Create geometry for the text plane
+  const textGeometry = new THREE.PlaneGeometry(cylinderRadius * 1.5, cylinderRadius * 1.5);
+  
+  // Create text mesh
+  const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+  
+  // Position the text above the cylinder
+  textMesh.position.set(0, cylinderRadius + 15, 0);
+  
+  // Make text always face the camera
+  textMesh.userData.isText = true;
+  
+  // Add text to cylinder as a child
+  cylinder.add(textMesh);
+  
+  // Store reference for camera-facing updates
+  if (!window.textMeshes) {
+    window.textMeshes = [];
+  }
+  window.textMeshes.push(textMesh);
+  
+  console.log(`Added text label "${text}" to cylinder`);
 }
 
