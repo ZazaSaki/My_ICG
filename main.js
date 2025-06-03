@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { createSimpleCylinder } from './cylinderUtils.js';
-import { connectCylindersWithBridge, createCylinderNetwork } from './bridgeUtils.js';
+import { connectCylindersWithBridge, createCylinderNetwork, clearBridgeTracking } from './bridgeUtils.js';
 import { toggleHitboxVisibility } from './hitboxUtils.js';
 import { getChildrenOfNode, getChildrenKeysOfNode, hasChildren } from './nodeUtils.js';
 
@@ -275,6 +275,9 @@ function regenerateWorld() {
     }
   });
 
+  // Clear bridge tracking data for fresh start
+  clearBridgeTracking();
+
   // Generate new world with custom data first to get root position
   createLevelWithSpreader();
   
@@ -305,7 +308,7 @@ async function createLevelWithSpreader() {
 
     if (layoutData) {
         console.log("Layout data from Spreader2 received:", layoutData);
-        load_map(layoutData);
+        load_map(layoutData, true); // Mark as root node
     } else {
         console.error("Failed to generate layout data using Spreader2.");
     }
@@ -434,7 +437,7 @@ function showMessage(text, type = 'info') {
 }
 
 // load_map function adapted for Spreader2's output
-function load_map(mapNode) { // mapNode is a node { location, radius, connections, name, ... }
+function load_map(mapNode, isRoot = false) { // mapNode is a node { location, radius, connections, name, ... }
   if (!mapNode || !mapNode.location) {
     console.warn("load_map: Invalid mapNode received", mapNode);
     return null;
@@ -451,8 +454,8 @@ function load_map(mapNode) { // mapNode is a node { location, radius, connection
   const threeY_height = location.z + 20; // Reduced offset from 50 to 20
   const threeZ = location.y;
 
-  // Update root node position if this is the first (root) node
-  if (!mapNode.name || mapNode.name === 'main' || mapNode.name === 'root') {
+  // Update root node position if this is the root node or if not set yet
+  if (isRoot || rootNodePosition.x === 0 && rootNodePosition.y === playerHeight && rootNodePosition.z === 0) {
     rootNodePosition = {
       x: threeX,
       y: threeY_height + radius + playerHeight, // Position above the cylinder surface
@@ -481,7 +484,7 @@ function load_map(mapNode) { // mapNode is a node { location, radius, connection
 
   if (mapNode.connections && mapNode.connections.length > 0) {
     for (const childNode of mapNode.connections) {
-        const childBody = load_map(childNode); // Recursive call
+        const childBody = load_map(childNode, false); // Recursive call, not root
         if (body && childBody) {
             connectCylindersWithBridge(
                 body,

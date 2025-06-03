@@ -142,6 +142,19 @@ function createPauseOverlay() {
       ">Upload JSON</button>
     </div>
     <div style="margin: 20px 0;">
+      <button id="createTreeBtn" style="
+        background-color: #9C27B0;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        margin: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        min-width: 120px;
+      ">Create Tree</button>
+    </div>
+    <div style="margin: 20px 0;">
       <button id="resetWorldBtn" style="
         background-color: #ff6b6b;
         color: white;
@@ -177,6 +190,11 @@ function setupPauseMenuListeners() {
   document.getElementById('uploadJsonBtn').addEventListener('click', () => {
     // Trigger the file input
     document.getElementById('fileInput').click();
+  });
+  
+  document.getElementById('createTreeBtn').addEventListener('click', () => {
+    // Open the tree creator in a new tab
+    window.open('https://liber-metrika.vercel.app/tree_interactor', '_blank');
   });
   
   document.getElementById('resetWorldBtn').addEventListener('click', () => {

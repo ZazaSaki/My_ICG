@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { scene, collidableObjects } from './main.js';
 import { createVisibleHitbox } from './hitboxUtils.js';
 
+// Global tracking for bridge collision detection
+const bridgeTracker = new Map(); // Maps cylinder IDs to their bridges
+
 /**
  * Creates a bridge connecting two cylinders at their edges, handling different heights
  * @param {THREE.Mesh} cylinder1 - First cylinder
@@ -22,6 +25,23 @@ export function connectCylindersWithBridge(
   material,
   isCollidable = true
 ) {
+  if (!cylinder1 || !cylinder2) {
+    console.error("connectCylindersWithBridge: Invalid cylinder objects provided");
+    return null;
+  }
+
+  // Get cylinder IDs for tracking
+  const cylinder1Id = cylinder1.uuid;
+  const cylinder2Id = cylinder2.uuid;
+  
+  // Initialize bridge tracking for cylinders if not exists
+  if (!bridgeTracker.has(cylinder1Id)) {
+    bridgeTracker.set(cylinder1Id, []);
+  }
+  if (!bridgeTracker.has(cylinder2Id)) {
+    bridgeTracker.set(cylinder2Id, []);
+  }
+
   // Get cylinder centers
   const center1 = new THREE.Vector3().copy(cylinder1.position);
   const center2 = new THREE.Vector3().copy(cylinder2.position);
@@ -124,6 +144,21 @@ export function connectCylindersWithBridge(
   if (isCollidable) {
     createCollisionBoxesForBridge(bridge, bridgeLength, bridgeThickness, bridgeWidth, point1, point2);
   }
+
+  // Store bridge information for collision tracking
+  const bridgeInfo = {
+    bridge: bridge,
+    startPoint: point1.clone(),
+    endPoint: point2.clone(),
+    width: bridgeWidth,
+    height: bridgeThickness,
+    direction: bridgeDirection.clone().normalize(),
+    angle: calculateOptimalConnectionPoint(cylinder1, point2, bridgeWidth, cylinder1Id).angle
+  };
+  
+  // Add to tracking
+  bridgeTracker.get(cylinder1Id).push(bridgeInfo);
+  bridgeTracker.get(cylinder2Id).push(bridgeInfo);
   
   return bridge;
 }
@@ -262,6 +297,123 @@ function createCollisionBoxesForBridge(bridge, length, height, width, startPoint
   
   // The bridge itself is not collidable, just a visual
   bridge.userData.isVisualOnly = true;
+}
+
+/**
+ * Calculate optimal connection point on cylinder edge to avoid bridge overlaps
+ */
+function calculateOptimalConnectionPoint(fromCylinder, toPosition, bridgeWidth, cylinderId) {
+  const fromPos = fromCylinder.position.clone();
+  const radius = fromCylinder.geometry ? fromCylinder.geometry.parameters.radiusTop : 10;
+  
+  // Calculate the direction to the target
+  const directionToTarget = new THREE.Vector3().subVectors(toPosition, fromPos);
+  directionToTarget.y = 0; // Project onto horizontal plane
+  directionToTarget.normalize();
+  
+  // Calculate the ideal angle for this connection
+  const idealAngle = Math.atan2(directionToTarget.z, directionToTarget.x);
+  
+  // Get existing bridges from this cylinder
+  const existingBridges = bridgeTracker.get(cylinderId) || [];
+  
+  // Find the best angle that avoids collisions
+  const finalAngle = findNonCollidingAngle(idealAngle, existingBridges, bridgeWidth, radius);
+  
+  // Calculate the connection point
+  const connectionPoint = new THREE.Vector3(
+    fromPos.x + radius * Math.cos(finalAngle),
+    fromPos.y,
+    fromPos.z + radius * Math.sin(finalAngle)
+  );
+  
+  return {
+    point: connectionPoint,
+    angle: finalAngle
+  };
+}
+
+/**
+ * Find an angle that doesn't cause bridge collisions
+ */
+function findNonCollidingAngle(idealAngle, existingBridges, bridgeWidth, cylinderRadius) {
+  if (existingBridges.length === 0) {
+    return idealAngle;
+  }
+  
+  // Calculate minimum angular separation needed
+  // Based on bridge width and cylinder radius
+  const minAngularSeparation = Math.asin(bridgeWidth / cylinderRadius) + 0.2; // Add 0.2 radians safety margin
+  
+  // Collect all existing angles
+  const existingAngles = existingBridges.map(bridge => bridge.angle);
+  
+  // Try the ideal angle first
+  if (isAngleClear(idealAngle, existingAngles, minAngularSeparation)) {
+    return idealAngle;
+  }
+  
+  // If ideal angle conflicts, try nearby angles
+  const maxAttempts = 36; // Check every 10 degrees
+  const angleStep = (2 * Math.PI) / maxAttempts;
+  
+  for (let i = 1; i < maxAttempts; i++) {
+    // Try both positive and negative offsets
+    const angle1 = idealAngle + (i * angleStep);
+    const angle2 = idealAngle - (i * angleStep);
+    
+    if (isAngleClear(angle1, existingAngles, minAngularSeparation)) {
+      console.log(`Bridge angle adjusted by +${(i * angleStep * 180 / Math.PI).toFixed(1)} degrees to avoid collision`);
+      return normalizeAngle(angle1);
+    }
+    
+    if (isAngleClear(angle2, existingAngles, minAngularSeparation)) {
+      console.log(`Bridge angle adjusted by -${(i * angleStep * 180 / Math.PI).toFixed(1)} degrees to avoid collision`);
+      return normalizeAngle(angle2);
+    }
+  }
+  
+  // If no clear angle found, use ideal angle with warning
+  console.warn("Could not find non-colliding angle for bridge, using ideal angle anyway");
+  return idealAngle;
+}
+
+/**
+ * Check if an angle is clear of existing bridges
+ */
+function isAngleClear(testAngle, existingAngles, minSeparation) {
+  for (const existingAngle of existingAngles) {
+    const angleDiff = getAngularDistance(testAngle, existingAngle);
+    if (angleDiff < minSeparation) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Calculate the minimum angular distance between two angles
+ */
+function getAngularDistance(angle1, angle2) {
+  const diff = Math.abs(angle1 - angle2);
+  return Math.min(diff, 2 * Math.PI - diff);
+}
+
+/**
+ * Normalize angle to [0, 2π] range
+ */
+function normalizeAngle(angle) {
+  while (angle < 0) angle += 2 * Math.PI;
+  while (angle >= 2 * Math.PI) angle -= 2 * Math.PI;
+  return angle;
+}
+
+/**
+ * Clear bridge tracking data (useful for world regeneration)
+ */
+export function clearBridgeTracking() {
+  bridgeTracker.clear();
+  console.log("Bridge tracking data cleared");
 }
 
 /**

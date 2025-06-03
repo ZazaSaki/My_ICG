@@ -5,9 +5,11 @@
 
 // Default layout options that can be imported and used or overridden
 export const layoutOptions = {
-    depthSpacing: 50, // Distance between parent/child levels along Z-axis
-    siblingSpreadRadius: 120, // Reduced from 300 to 120 for closer spacing
-    nodeVisualRadius: 30     // The radius value to assign to each node in the output
+    depthSpacing: 40, // Reduced from 80 to 40 for closer Z separation
+    siblingSpreadRadius: 75, // Reduced from 150 to 75 for tighter spacing
+    nodeVisualRadius: 30,     // The radius value to assign to each node in the output
+    minNodeDistance: 50,      // Reduced from 80 to 50 for closer minimum distance
+    radiusGrowthFactor: 1.2   // Reduced from 1.5 to 1.2 for less expansion per depth
 };
 
 /**
@@ -19,71 +21,138 @@ export function layoutAndTransformTree(originalRootNode, options = {}) {
         return null;
     }
 
-    // Default configurations for the layout
+    // Default configurations for the layout - closer spacing
     const config = {
-        depthSpacing: 50,
-        siblingSpreadRadius: 120, // Reduced from 300 to 120
+        depthSpacing: 40,        // Reduced from 80
+        siblingSpreadRadius: 75, // Reduced from 150
         nodeVisualRadius: 30,
+        minNodeDistance: 50,     // Reduced from 80
+        radiusGrowthFactor: 1.2, // Reduced from 1.5
         ...options // User-provided options will override defaults
     };
 
     const treeCopy = JSON.parse(JSON.stringify(originalRootNode));
-    _assignCoordinatesRecursive(treeCopy, 0, 0, 0, config, 0); // Root at 0,0,0, depth 0
+    const allNodes = []; // Track all nodes for collision detection
+    
+    _assignCoordinatesRecursive(treeCopy, 0, 0, 0, config, 0, allNodes); // Root at 0,0,0, depth 0
     return _transformToOutputFormatRecursive(treeCopy, config);
 }
 
 /** @private */
-function _assignCoordinatesRecursive(node, x, y, z, config, depth) {
+function _assignCoordinatesRecursive(node, x, y, z, config, depth, allNodes) {
     if (!node) return;
 
     node.x = x;
     node.y = y;
-    node.z = z; // Z represents the depth level
+    node.z = z;
     node.depth = depth;
+    node.radius = config.nodeVisualRadius;
+
+    // Add to tracking list for collision detection
+    allNodes.push({
+        x: x,
+        y: y,
+        z: z,
+        radius: config.nodeVisualRadius,
+        node: node
+    });
 
     if (node.children && node.children.length > 0) {
         const numChildren = node.children.length;
         
-        // Calculate minimum angle needed to prevent bridge overlap
-        // Assume bridge width is roughly 1/4 of node radius, and we want some spacing
+        // Calculate radius based on number of children and minimum spacing requirements
         const nodeRadius = config.nodeVisualRadius;
-        const bridgeWidth = Math.max(nodeRadius / 4, 8); // Same as in main.js
-        const spreadRadius = config.siblingSpreadRadius * (1 + depth * 0.2);
+        const minDistance = config.minNodeDistance;
         
-        // Calculate minimum angular separation needed to prevent overlap
-        // Using arc length = radius * angle, we want bridges to have at least bridgeWidth*2 separation
-        const minAngularSeparation = (bridgeWidth * 2.5) / spreadRadius; // 2.5 for extra spacing
+        // Calculate minimum radius needed to fit all children without overlap
+        // Using circumference = 2πr, and we need at least minDistance * numChildren around the circle
+        const minRadiusForSpacing = (minDistance * numChildren) / (2 * Math.PI);
         
-        // Ensure we have enough angular space for all children
-        const requiredTotalAngle = numChildren * minAngularSeparation;
-        const availableAngle = 2 * Math.PI;
+        // Base radius increases with depth to spread out the tree
+        const baseRadius = config.siblingSpreadRadius * Math.pow(config.radiusGrowthFactor, depth);
         
-        // If we need more space than available, increase the radius
-        let currentRadius = spreadRadius;
-        if (requiredTotalAngle > availableAngle) {
-            currentRadius = (numChildren * bridgeWidth * 2.5) / (2 * Math.PI);
-            console.log(`Increased radius from ${spreadRadius} to ${currentRadius} for ${numChildren} children`);
-        }
+        // Use the larger of the two radii
+        let currentRadius = Math.max(baseRadius, minRadiusForSpacing);
         
-        // Calculate actual angle step (either even distribution or minimum separation)
-        const angleStep = Math.max((2 * Math.PI) / numChildren, minAngularSeparation);
+        // Reduced safety factor for closer spacing
+        currentRadius *= 1.1; // Reduced from 1.2 to 1.1
         
-        // Use a deterministic starting angle based on node position to avoid randomness causing overlap
+        console.log(`Depth ${depth}, Children: ${numChildren}, Calculated radius: ${currentRadius}`);
+        
+        // Calculate angle step ensuring even distribution
+        const angleStep = (2 * Math.PI) / numChildren;
+        
+        // Use a deterministic starting angle based on parent position
         const startingAngle = (x + y + z) % (2 * Math.PI);
 
-        node.children.forEach((child, index) => {
-            // Calculate angle ensuring even distribution and no overlap
-            const angle = startingAngle + (index * angleStep);
-            
-            // Children are placed in a circle in the XY plane relative to the parent
-            const childX = x + currentRadius * Math.cos(angle);
-            const childY = y + currentRadius * Math.sin(angle);
-            // Children are at the next Z depth level
-            const childZ = z - config.depthSpacing; // Negative Z for "deeper" levels
+        const childPositions = [];
 
-            _assignCoordinatesRecursive(child, childX, childY, childZ, config, depth + 1);
+        node.children.forEach((child, index) => {
+            let attempts = 0;
+            let validPosition = false;
+            let childX, childY, childZ;
+
+            while (!validPosition && attempts < 10) {
+                // Calculate angle with some randomization to avoid perfect alignment
+                const baseAngle = startingAngle + (index * angleStep);
+                const angleVariation = attempts * 0.05; // Reduced variation for tighter packing
+                const angle = baseAngle + angleVariation;
+                
+                // Calculate position with current radius
+                const testRadius = currentRadius + (attempts * minDistance * 0.1); // Reduced growth per attempt
+                childX = x + testRadius * Math.cos(angle);
+                childY = y + testRadius * Math.sin(angle);
+                childZ = z - config.depthSpacing; // Negative Z for "deeper" levels
+
+                // Check for collisions with existing nodes
+                validPosition = _checkNoCollision(childX, childY, childZ, nodeRadius, allNodes, config.minNodeDistance);
+                
+                if (!validPosition) {
+                    attempts++;
+                    if (attempts === 5) {
+                        // If still colliding, increase the radius less aggressively
+                        currentRadius *= 1.15; // Reduced from 1.3 to 1.15
+                    }
+                }
+            }
+
+            if (!validPosition) {
+                // Fallback: place at a safe distance (but not too far)
+                const fallbackAngle = startingAngle + (index * angleStep);
+                const fallbackRadius = currentRadius * 1.5; // Reduced from 2.0 to 1.5
+                childX = x + fallbackRadius * Math.cos(fallbackAngle);
+                childY = y + fallbackRadius * Math.sin(fallbackAngle);
+                childZ = z - config.depthSpacing;
+                console.warn(`Fallback positioning used for child ${index} at depth ${depth + 1}`);
+            }
+
+            childPositions.push({ x: childX, y: childY, z: childZ });
+        });
+
+        // Now recursively process children with their final positions
+        node.children.forEach((child, index) => {
+            const pos = childPositions[index];
+            _assignCoordinatesRecursive(child, pos.x, pos.y, pos.z, config, depth + 1, allNodes);
         });
     }
+}
+
+/** @private */
+function _checkNoCollision(x, y, z, radius, allNodes, minDistance) {
+    for (const existingNode of allNodes) {
+        const dx = x - existingNode.x;
+        const dy = y - existingNode.y;
+        const dz = z - existingNode.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        // Required distance is sum of radii plus minimum spacing
+        const requiredDistance = radius + existingNode.radius + minDistance;
+        
+        if (distance < requiredDistance) {
+            return false; // Collision detected
+        }
+    }
+    return true; // No collision
 }
 
 /** @private */
