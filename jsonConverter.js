@@ -1,152 +1,137 @@
-
-
-  /**
-   * Transforms a node from the input JSON structure to the target structure.
-   * @param {object} node - The input node.
-   * @returns {object} The transformed node value.
-   */
-  export function transformNode(node) {
-      // If the node has no children, it's a leaf in the new structure.
-      // Return the default path and code object.
-      if (!node.children || node.children.length === 0) {
-          return {
-              "path": "Branch1/WorldGenerator.js",
-              "code": "// Path: Branch1/WorldGenerator.js"
-          };
-      }
-
-      // If the node has children, process them recursively.
-      const processedChildren = {};
-      for (const child of node.children) {
-          processedChildren[child.data.label] = transformNode(child);
-      }
-
-      // Add specific "test" properties based on the current node's label,
-      // as these "test" keys are siblings to the children's labels in the output.
-      if (node.data.label === "branch 1") {
-          processedChildren["test"] = "test1";
-      }
-      if (node.data.label === "branch 2") {
-          processedChildren["test"] = "test2";
-      }
-
-      return processedChildren;
-  }
-
-  /**
-   * Converts an array of nodes from one JSON format to another.
-   * @param {Array<object>} inputArray - The input array of nodes.
-   * @returns {object} The converted JSON object.
-   */
-  export function convertJsonStructure(inputArray) {
-      if (!inputArray || inputArray.length === 0) {
-          return {};
-      }
-
-      // Assuming the input array contains a single root node for the desired output structure.
-      const rootInputNode = inputArray[0];
-      const output = {};
-
-      // The root key is the label of the root input node.
-      // The value is the result of transforming this root input node.
-      output[rootInputNode.data.label] = transformNode(rootInputNode);
-      return output; // Added return statement
-  }
-
-  // Example Usage (optional, for testing):
-  ///*
-  export const exampleInput = [
-    {
-      "id": "1",
-      "type": "custom",
-      "position": { "x": -46.5, "y": 41 },
-      "data": {
-        "label": "layer 1",
-        "description": "This is the root node.",
-        "manuallyRelatedNodeIds": [],
-        "isCollapsed": false
-      },
-      "children": [
-        {
-          "id": "node_7",
-          "type": "custom",
-          "position": { "x": -161.25, "y": 192.625 },
-          "data": {
-            "label": "branch 1",
-            "description": "Description for node_7",
-            "isCollapsed": false,
-            "manuallyRelatedNodeIds": []
-          },
-          "children": [
-            {
-              "id": "node_8",
-              "type": "custom",
-              "position": { "x": -249.75, "y": 301.125 },
-              "data": {
-                "label": "level 1",
-                "description": "Description for node_8",
-                "isCollapsed": false,
-                "manuallyRelatedNodeIds": []
-              }
-            },
-            {
-              "id": "node_9",
-              "type": "custom",
-              "position": { "x": -71.75, "y": 300.125 },
-              "data": {
-                "label": "level 2",
-                "description": "Description for node_9",
-                "isCollapsed": false,
-                "manuallyRelatedNodeIds": []
-              }
-            }
-          ]
+const inputJson = [
+  {
+    "id": "1",
+    "type": "custom",
+    "position": {
+      "x": 277.5,
+      "y": -2.5
+    },
+    "data": {
+      "label": "main",
+      "description": "This is the root node.",
+      "manuallyRelatedNodeIds": [],
+      "hasChildren": true
+    },
+    "children": [
+      {
+        "id": "node_7",
+        "type": "custom",
+        "position": {
+          "x": 138.1875,
+          "y": 91.505859375
         },
-        {
-          "id": "node_10",
-          "type": "custom",
-          "position": { "x": 110.75, "y": 196.125 },
-          "data": {
-            "label": "branch 2",
-            "description": "Description for node_10",
-            "isCollapsed": false,
-            "manuallyRelatedNodeIds": ["node_9"]
-          },
-          "children": [
-            {
-              "id": "node_11",
-              "type": "custom",
-              "position": { "x": 133.25, "y": 287.625 },
-              "data": {
-                "label": "level 1",
-                "description": "Description for node_11",
-                "isCollapsed": false,
-                "manuallyRelatedNodeIds": ["node_9"]
-              }
+        "data": {
+          "label": "branch2",
+          "description": "Description for node_7",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": false // Note: In your example, this has children, but hasChildren is false. I'll trust the children array.
+        },
+        "children": [ // This node_7 actually has a child, node_10
+          {
+            "id": "node_10",
+            "type": "custom",
+            "position": {
+              "x": 87.1875,
+              "y": 192.505859375
+            },
+            "data": {
+              "label": "node 3", // Will become "node3"
+              "description": "Description for node_10",
+              "isCollapsed": false,
+              "manuallyRelatedNodeIds": [],
+              "hasChildren": false
             }
-          ]
-        }
-      ]
+          }
+        ]
+      },
+      {
+        "id": "node_6",
+        "type": "custom",
+        "position": {
+          "x": 446.6875,
+          "y": 100.505859375
+        },
+        "data": {
+          "label": "branch1",
+          "description": "Description for node_6",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": true
+        },
+        "children": [
+          {
+            "id": "node_8",
+            "type": "custom",
+            "position": {
+              "x": 356.6875,
+              "y": 204.005859375
+            },
+            "data": {
+              "label": "node 1", // Will become "node1"
+              "description": "Description for node_8",
+              "isCollapsed": false,
+              "manuallyRelatedNodeIds": [],
+              "hasChildren": false
+            }
+          },
+          {
+            "id": "node_9",
+            "type": "custom",
+            "position": {
+              "x": 587.1875,
+              "y": 202.005859375
+            },
+            "data": {
+              "label": "node 2", // Will become "node2"
+              "description": "Description for node_9",
+              "isCollapsed": false,
+              "manuallyRelatedNodeIds": [],
+              "hasChildren": false
+            }
+          }
+        ]
+      }
+    ]
+  }
+];
+
+export function convertToWorldStructure(nodes) {
+  const worldStructure = {};
+
+  // Helper function to process each node and its children recursively
+  function processNode(node) {
+    const outputNode = {};
+    const originalLabel = node.data.label;
+
+    // Process children if they exist
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(childNode => {
+        const childOriginalLabel = childNode.data.label;
+        // Sanitize label: "node 1" -> "node1", "branch1" -> "branch1"
+        const childKeyLabel = childOriginalLabel.replace(/\s+/g, '');
+        
+        outputNode[childKeyLabel] = processNode(childNode); // Recursive call
+
+        // Special handling for "node 2" (which becomes "node2")
+        // if (childOriginalLabel === "node 2") {
+        //   outputNode[childKeyLabel]["material.h"] = "wood";
+        // }
+      });
     }
-  ];
+    return outputNode;
+  }
 
-  const converted = convertJsonStructure(exampleInput);
-  console.log(JSON.stringify(converted, null, 2));
-  */
+  // The input is an array, likely with one root node
+  if (nodes && nodes.length > 0) {
+    const rootNode = nodes[0];
+    const rootLabel = rootNode.data.label.replace(/\s+/g, ''); // Sanitize root label too
+    worldStructure[rootLabel] = processNode(rootNode);
+  }
 
-  /**
-   * Reads a JSON file and converts its structure using convertJsonStructure.
-   * @param {string} filePath - The path to the JSON file to read.
-   * @returns {object} The converted JSON object.
-   */
-  // export function readAndConvertFile(filePath) {
-  //   try {
-  //     const fileContent = fs.readFileSync(filePath, 'utf8');
-  //     const inputData = JSON.parse(fileContent);
-  //     return convertJsonStructure(inputData);
-  //   } catch (error) {
-  //     console.error('Error reading or converting file:', error.message);
-  //     return {};
-  //   }
-  // }
+  return worldStructure;
+}
 
+// const worldStructure = convertToWorldStructure(inputJson);
+
+// console.log('const worldStructure = ' + JSON.stringify(worldStructure, null, 2) + ';');

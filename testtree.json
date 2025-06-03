@@ -1,0 +1,289 @@
+{
+    "title": "Knowledge Tree 6/3/2025",
+    "description": "Knowledge tree created in editor",
+    "nodes": [
+      {
+        "id": "1",
+        "type": "custom",
+        "position": {
+          "x": -100,
+          "y": 0
+        },
+        "data": {
+          "label": "Node 1",
+          "description": "This is the root node.",
+          "manuallyRelatedNodeIds": [],
+          "isCollapsed": false,
+          "hasChildren": true
+        }
+      },
+      {
+        "id": "2",
+        "type": "custom",
+        "position": {
+          "x": -100,
+          "y": 150
+        },
+        "data": {
+          "label": "Node 2",
+          "description": "A child of Node 1.",
+          "manuallyRelatedNodeIds": [],
+          "isCollapsed": false,
+          "hasChildren": true
+        }
+      },
+      {
+        "id": "4",
+        "type": "custom",
+        "position": {
+          "x": -100,
+          "y": 300
+        },
+        "data": {
+          "label": "Node 4",
+          "description": "Child of Node 2.",
+          "manuallyRelatedNodeIds": [],
+          "isCollapsed": false,
+          "hasChildren": true
+        }
+      },
+      {
+        "id": "node_6",
+        "type": "custom",
+        "position": {
+          "x": -76.17964601769913,
+          "y": 430.6619469026549
+        },
+        "data": {
+          "label": "New Node 6",
+          "description": "Description for node_6",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": false
+        }
+      },
+      {
+        "id": "3",
+        "type": "custom",
+        "position": {
+          "x": 137.05929203539824,
+          "y": 124.76814159292033
+        },
+        "data": {
+          "label": "Node 3",
+          "description": "Another child of Node 1.",
+          "manuallyRelatedNodeIds": [],
+          "isCollapsed": false,
+          "hasChildren": true
+        }
+      },
+      {
+        "id": "5",
+        "type": "custom",
+        "position": {
+          "x": 271.89203539823006,
+          "y": 274.7681415929203
+        },
+        "data": {
+          "label": "Node 5",
+          "description": "Child of Node 3.",
+          "manuallyRelatedNodeIds": [],
+          "isCollapsed": false,
+          "hasChildren": true
+        }
+      },
+      {
+        "id": "node_7",
+        "type": "custom",
+        "position": {
+          "x": -350.5761061946903,
+          "y": 161.78495575221237
+        },
+        "data": {
+          "label": "New Node 7",
+          "description": "Description for node_7",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": true
+        }
+      },
+      {
+        "id": "node_8",
+        "type": "custom",
+        "position": {
+          "x": -269.3610619469026,
+          "y": 306.07964601769913
+        },
+        "data": {
+          "label": "New Node 8",
+          "description": "Description for node_8",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": false
+        }
+      },
+      {
+        "id": "node_9",
+        "type": "custom",
+        "position": {
+          "x": 278.64336283185844,
+          "y": 413.3150442477876
+        },
+        "data": {
+          "label": "New Node 9",
+          "description": "Description for node_9",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": false
+        }
+      },
+      {
+        "id": "node_10",
+        "type": "custom",
+        "position": {
+          "x": -484.77805309734504,
+          "y": 327.3690265486726
+        },
+        "data": {
+          "label": "New Node 10",
+          "description": "Description for node_10",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": false
+        }
+      },
+      {
+        "id": "node_11",
+        "type": "custom",
+        "position": {
+          "x": 116.21327433628304,
+          "y": 413.3150442477876
+        },
+        "data": {
+          "label": "New Node 11",
+          "description": "Description for node_11",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": false
+        }
+      },
+      {
+        "id": "node_12",
+        "type": "custom",
+        "position": {
+          "x": 105.17433628318571,
+          "y": 299.7716814159292
+        },
+        "data": {
+          "label": "New Node 12",
+          "description": "Description for node_12",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": false
+        }
+      },
+      {
+        "id": "node_13",
+        "type": "custom",
+        "position": {
+          "x": -457.8115044247789,
+          "y": 444.066371681416
+        },
+        "data": {
+          "label": "New Node 13",
+          "description": "Description for node_13",
+          "isCollapsed": false,
+          "manuallyRelatedNodeIds": [],
+          "hasChildren": false
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1-2-1",
+        "source": "1",
+        "target": "2",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e2-4-2",
+        "source": "2",
+        "target": "4",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e4-node_6-3",
+        "source": "4",
+        "target": "node_6",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e1-3-4",
+        "source": "1",
+        "target": "3",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e3-5-5",
+        "source": "3",
+        "target": "5",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e1-node_7-1748939548101",
+        "source": "1",
+        "target": "node_7",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e5-node_9-1748939553893",
+        "source": "5",
+        "target": "node_9",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e2-node_8-1748939557965",
+        "source": "2",
+        "target": "node_8",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "enode_7-node_10-1748939566485",
+        "source": "node_7",
+        "target": "node_10",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e5-node_11-1748939574037",
+        "source": "5",
+        "target": "node_11",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "e3-node_12-1748939577109",
+        "source": "3",
+        "target": "node_12",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "id": "enode_10-node_13-1748939582389",
+        "source": "node_10",
+        "target": "node_13",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      }
+    ],
+    "exportDate": "2025-06-03T08:33:03.365Z",
+    "version": "1.0"
+  }

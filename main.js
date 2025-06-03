@@ -314,14 +314,16 @@ function processNode(key, value, radius) {
 }
 
 // Execute the world generator
-const resFdata =  generateWorldStructureFromData();
+const resFdata =  await generateWorldStructureFromData();
+console.log("Generated world structure:", localStorage.getItem("worldStructure"));
+console.log("resFdata:", resFdata);
 console.log("resFdata:", resFdata.connections[0]);
 
 const result = iterateDictionary(worldStructure);
-console.log("file:", worldStructure);
+console.log("file:", resFdata.connections[0]);
 console.log("Generated world structure:", result);
 
-load_map(resFdata.connections[0]);
+load_map(result.connections[0]);
 
 function load_map(map){
   const location = map.location;

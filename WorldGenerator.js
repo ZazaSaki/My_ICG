@@ -1,5 +1,5 @@
 import { getChildrenOfNode, hasChildren } from './nodeUtils.js';
-
+import { convertToWorldStructure } from './jsonConverter.js';
 const worldTestFiles = {"layer 1" : {
     "branch 1" : {
         "level 1" : {
@@ -307,30 +307,10 @@ const exampleInput = [
     }
   ];
 
-/**
- * Converts an array of nodes from one JSON format to another.
- * @param {Array<object>} inputArray - The input array of nodes.
- * @returns {object} The converted JSON object.
- */
-export function convertJsonStructure(inputArray) {
-    if (!inputArray || inputArray.length === 0) {
-        return {};
-    }
-
-    // Assuming the input array contains a single root node for the desired output structure.
-    const rootInputNode = inputArray[0];
-    const output = {};
-
-    // The root key is the label of the root input node.
-    // The value is the result of transforming this root input node.
-    output[rootInputNode.data.label] = transformNode(rootInputNode);
-    return output; // Added return statement
-}
-
-
 export function generateWorldStructureFromData() {
-    const worldStructure = convertJsonStructure(exampleInput);
+    const worldStructure = convertToWorldStructure(exampleInput);
+    localStorage.setItem("worldStructure", JSON.stringify(worldStructure));
     const result = iterateDictionary(worldStructure);
-    console.log("file:", worldStructure);
+    console.log("input structure:", worldStructure);
     return result;
 }

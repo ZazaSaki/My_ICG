@@ -1,0 +1,15 @@
+{
+  "name": "project-name",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "devDependencies": {
+    "mocha": "^10.8.2"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
