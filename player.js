@@ -75,6 +75,17 @@ function resetPlayerState() {
   if (pauseOverlay) {
     pauseOverlay.style.display = 'none';
   }
+  
+  // Position player on root node if available
+  if (controls.getObject && window.rootNodePosition) {
+    const controlsObject = controls.getObject();
+    controlsObject.position.set(
+      window.rootNodePosition.x,
+      window.rootNodePosition.y,
+      window.rootNodePosition.z
+    );
+    console.log("Player positioned on root node at:", window.rootNodePosition);
+  }
 }
 
 function createPauseOverlay() {

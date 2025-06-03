@@ -21,6 +21,7 @@ export const playerRadius = 2;
 
 // Global variable to store custom JSON data
 let customWorldData = null;
+let rootNodePosition = { x: 0, y: playerHeight, z: 0 }; // Track root node position
 
 // Initialize the scene
 init();
@@ -60,6 +61,9 @@ function init() {
   
   // Expose reset function globally for pause menu access
   window.resetToDefaultWorld = resetToDefaultWorld;
+  
+  // Expose root node position globally
+  window.rootNodePosition = rootNodePosition;
   
   // Import and set up player AFTER scene is ready to avoid circular dependencies
   import('./player.js').then(playerModule => {
@@ -271,10 +275,13 @@ function regenerateWorld() {
     }
   });
 
-  // Reset player position and velocity properly
+  // Generate new world with custom data first to get root position
+  createLevelWithSpreader();
+  
+  // Reset player position to root node position
   if (controls.getObject) {
     const controlsObject = controls.getObject();
-    controlsObject.position.set(0, playerHeight, 0);
+    controlsObject.position.set(rootNodePosition.x, rootNodePosition.y, rootNodePosition.z);
     
     // Reset camera rotation
     camera.rotation.set(0, 0, 0);
@@ -284,9 +291,6 @@ function regenerateWorld() {
       window.resetPlayerState();
     }
   }
-
-  // Generate new world with custom data
-  createLevelWithSpreader();
   
   console.log('World regenerated with custom JSON data');
 }
@@ -446,6 +450,16 @@ function load_map(mapNode) { // mapNode is a node { location, radius, connection
   const threeX = location.x;
   const threeY_height = location.z + 20; // Reduced offset from 50 to 20
   const threeZ = location.y;
+
+  // Update root node position if this is the first (root) node
+  if (!mapNode.name || mapNode.name === 'main' || mapNode.name === 'root') {
+    rootNodePosition = {
+      x: threeX,
+      y: threeY_height + radius + playerHeight, // Position above the cylinder surface
+      z: threeZ
+    };
+    console.log("Root node position set to:", rootNodePosition);
+  }
 
   console.log(`Loading map node: ${mapNode.name || 'Unnamed'}, Radius: ${radius}`);
   console.log(`  Spreader Coords: X=${location.x.toFixed(2)}, Y_horiz=${location.y.toFixed(2)}, Z_depth=${location.z.toFixed(2)}`);
