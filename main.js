@@ -4,7 +4,8 @@ import { createSimpleCylinder } from './cylinderUtils.js';
 import { connectCylindersWithBridge, createCylinderNetwork } from './bridgeUtils.js';
 import { toggleHitboxVisibility } from './hitboxUtils.js';
 import { getChildrenOfNode, getChildrenKeysOfNode, hasChildren } from './nodeUtils.js';
-import { iterateDictionary } from './WorldGenerator.js';
+import { iterateDictionary, generateWorldStructureFromData } from './WorldGenerator.js';
+// import { readAndConvertFile } from './jsonConverter.js';
 
 // Scene setup
 export const scene = new THREE.Scene();
@@ -110,13 +111,61 @@ function animate() {
 }
 
 function setupLights() {
+  // Create sky background with sun
+  const skyboxGeometry = new THREE.SphereGeometry(500, 32, 32);
+  const skyboxMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      sunPosition: { value: new THREE.Vector3(0.3, 0.7, 0.2).normalize() },
+      skyColor: { value: new THREE.Color(0x87CEEB) },
+      horizonColor: { value: new THREE.Color(0xB0E0E6) },
+      sunColor: { value: new THREE.Color(0xFFFFAA) }
+    },
+    vertexShader: `
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPosition.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 sunPosition;
+      uniform vec3 skyColor;
+      uniform vec3 horizonColor;
+      uniform vec3 sunColor;
+      varying vec3 vWorldPosition;
+      
+      void main() {
+        vec3 direction = normalize(vWorldPosition);
+        
+        // Create gradient from horizon to sky
+        float heightFactor = direction.y;
+        vec3 baseColor = mix(horizonColor, skyColor, smoothstep(-0.1, 0.5, heightFactor));
+        
+        // Add sun
+        float sunDistance = distance(direction, sunPosition);
+        float sunIntensity = 1.0 - smoothstep(0.0, 0.15, sunDistance);
+        float sunGlow = 1.0 - smoothstep(0.0, 0.4, sunDistance);
+        
+        vec3 finalColor = mix(baseColor, sunColor, sunIntensity * 0.9);
+        finalColor = mix(finalColor, sunColor * 0.3, sunGlow * 0.4);
+        
+        gl_FragColor = vec4(finalColor, 1.0);
+      }
+    `,
+    side: THREE.BackSide
+  });
+  
+  const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+  scene.add(skybox);
+  
   // Ambient light
   const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
   scene.add(ambientLight);
   
   // Directional light (sun)
   const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-  directionalLight.position.set(50, 100, 50);
+  directionalLight.position.set(150, 350, 100);
   directionalLight.castShadow = true;
   directionalLight.shadow.mapSize.width = 2048;
   directionalLight.shadow.mapSize.height = 2048;
@@ -160,30 +209,30 @@ function createLevel() {
   scene.add(floor);
   collidableObjects.push(floor);
   
-  // Create cylinders and store references
-  const cylinder1 = createSimpleCylinder(-60, 50, 30, 60, cylinderMaterial);
-  const cylinder2 = createSimpleCylinder(60, 7.5, -60, 20, cylinderMaterial);
-  const cylinder3 = createSimpleCylinder(90, 5, 90, 20, cylinderMaterial);
+  // // Create cylinders and store references
+  // const cylinder1 = createSimpleCylinder(-60, 50, 30, 60, cylinderMaterial);
+  // const cylinder2 = createSimpleCylinder(60, 7.5, -60, 20, cylinderMaterial);
+  // const cylinder3 = createSimpleCylinder(90, 5, 90, 20, cylinderMaterial);
   
-  // Method 1: Connect two specific cylinders with a bridge
-  connectCylindersWithBridge(
-    cylinder1,
-    cylinder2,
-    20,    // bridge width
-    1,    // bridge thickness
-    0,    // height offset (from cylinder center)
-    bridgeMaterial
-  );
+  // // Method 1: Connect two specific cylinders with a bridge
+  // connectCylindersWithBridge(
+  //   cylinder1,
+  //   cylinder2,
+  //   20,    // bridge width
+  //   1,    // bridge thickness
+  //   0,    // height offset (from cylinder center)
+  //   bridgeMaterial
+  // );
   
-  // Method 2: Create a network of connected cylinders
-  const cylinderNetwork = [cylinder2, cylinder3];
-  createCylinderNetwork(
-    cylinderNetwork,
-    8,    // bridge width
-    0.8,  // bridge thickness
-    1,    // height offset (slightly above center of cylinders)
-    bridgeMaterial
-  );
+  // // Method 2: Create a network of connected cylinders
+  // const cylinderNetwork = [cylinder2, cylinder3];
+  // createCylinderNetwork(
+  //   cylinderNetwork,
+  //   8,    // bridge width
+  //   0.8,  // bridge thickness
+  //   1,    // height offset (slightly above center of cylinders)
+  //   bridgeMaterial
+  // );
 }
 
 function createWall(x, y, z, width, height, depth, material) {
@@ -265,11 +314,14 @@ function processNode(key, value, radius) {
 }
 
 // Execute the world generator
+const resFdata =  generateWorldStructureFromData();
+console.log("resFdata:", resFdata.connections[0]);
+
 const result = iterateDictionary(worldStructure);
 console.log("file:", worldStructure);
 console.log("Generated world structure:", result);
 
-load_map(result.connections[0]);
+load_map(resFdata.connections[0]);
 
 function load_map(map){
   const location = map.location;
