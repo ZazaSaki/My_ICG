@@ -487,8 +487,10 @@ function load_map(mapNode, isRoot = false) { // mapNode is a node { location, ra
     cylinderMaterial
   );
 
-  // Add text label to the cylinder
+  // Add text label to the cylinder with description
   if (body) {
+    // Store mapNode data in cylinder userData for description access
+    body.userData.mapNode = mapNode;
     addTextToyCylinder(body, mapNode.name || mapNode.id || 'Node', radius);
   }
 
@@ -521,14 +523,15 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   
-  // Set canvas size based on text length and cylinder size
-  const canvasSize = Math.max(256, cylinderRadius * 8);
+  // Set canvas size based on text length and cylinder size - increased for more spacing
+  const canvasSize = Math.max(320, cylinderRadius * 12); // Increased from 10 to 12
   canvas.width = canvasSize;
   canvas.height = canvasSize;
   
-  // Configure text styling
-  const fontSize = Math.max(20, cylinderRadius * 2);
-  context.font = `bold ${fontSize}px Arial, sans-serif`;
+  // Configure text styling for main label
+  const mainFontSize = Math.max(20, cylinderRadius * 2);
+  const descriptionFontSize = Math.max(10, cylinderRadius * 0.8); // Reduced from 1 to 0.8 for smaller description text
+  
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   
@@ -541,16 +544,14 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
   context.lineWidth = 4;
   context.strokeRect(0, 0, canvas.width, canvas.height);
   
-  // Add text with stroke for better visibility
-  context.fillStyle = '#333333';
-  context.strokeStyle = '#ffffff';
-  context.lineWidth = 3;
-  
-  // Handle long text by wrapping
+  // Handle long text by wrapping for main label
   const maxWidth = canvas.width * 0.8;
   const words = text.split(' ');
-  const lines = [];
+  const mainLines = [];
   let currentLine = words[0];
+  
+  // Set font for measuring main text
+  context.font = `bold ${mainFontSize}px Arial, sans-serif`;
   
   for (let i = 1; i < words.length; i++) {
     const word = words[i];
@@ -558,21 +559,82 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
     if (width < maxWidth) {
       currentLine += ' ' + word;
     } else {
-      lines.push(currentLine);
+      mainLines.push(currentLine);
       currentLine = word;
     }
   }
-  lines.push(currentLine);
+  mainLines.push(currentLine);
   
-  // Draw each line
-  const lineHeight = fontSize * 1.2;
-  const startY = (canvas.height - (lines.length - 1) * lineHeight) / 2;
+  // Get description from mapNode if available
+  let description = '';
+  if (cylinder.userData && cylinder.userData.mapNode) {
+    description = cylinder.userData.mapNode.description || '';
+  }
   
-  lines.forEach((line, index) => {
-    const y = startY + index * lineHeight;
+  // Handle description text wrapping
+  const descriptionLines = [];
+  if (description) {
+    context.font = `${descriptionFontSize}px Arial, sans-serif`;
+    const descWords = description.split(' ');
+    let currentDescLine = descWords[0] || '';
+    
+    for (let i = 1; i < descWords.length; i++) {
+      const word = descWords[i];
+      const width = context.measureText(currentDescLine + ' ' + word).width;
+      if (width < maxWidth) {
+        currentDescLine += ' ' + word;
+      } else {
+        descriptionLines.push(currentDescLine);
+        currentDescLine = word;
+      }
+    }
+    if (currentDescLine) {
+      descriptionLines.push(currentDescLine);
+    }
+  }
+  
+  // Calculate text heights and positioning with better spacing
+  const mainLineHeight = mainFontSize * 1.2;
+  const descLineHeight = descriptionFontSize * 1.2;
+  const spacingBetweenSections = mainFontSize * 0.8; // Increased spacing between title and description
+  
+  // Calculate total heights
+  const totalMainHeight = mainLines.length * mainLineHeight;
+  const totalDescHeight = descriptionLines.length * descLineHeight;
+  const totalContentHeight = totalMainHeight + spacingBetweenSections + totalDescHeight;
+  
+  // Start positioning from top of content area (with padding)
+  const paddingTop = canvasSize * 0.15; // 15% padding from top
+  const contentStartY = paddingTop;
+  
+  // Draw main text lines (title)
+  context.font = `bold ${mainFontSize}px Arial, sans-serif`;
+  context.fillStyle = '#333333';
+  context.strokeStyle = '#ffffff';
+  context.lineWidth = 3;
+  
+  mainLines.forEach((line, index) => {
+    const y = contentStartY + (index * mainLineHeight) + (mainLineHeight / 2);
     context.strokeText(line, canvas.width / 2, y);
     context.fillText(line, canvas.width / 2, y);
   });
+  
+  // Draw description lines (if any)
+  if (descriptionLines.length > 0) {
+    context.font = `${descriptionFontSize}px Arial, sans-serif`;
+    context.fillStyle = '#666666'; // Lighter color for description
+    context.strokeStyle = '#ffffff';
+    context.lineWidth = 1.5; // Thinner stroke for description
+    
+    // Position description below title with proper spacing
+    const descStartY = contentStartY + totalMainHeight + spacingBetweenSections;
+    
+    descriptionLines.forEach((line, index) => {
+      const y = descStartY + (index * descLineHeight) + (descLineHeight / 2);
+      context.strokeText(line, canvas.width / 2, y);
+      context.fillText(line, canvas.width / 2, y);
+    });
+  }
   
   // Create texture from canvas
   const texture = new THREE.CanvasTexture(canvas);
@@ -586,14 +648,14 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
     side: THREE.DoubleSide // This makes it visible from both sides
   });
   
-  // Create geometry for the text plane
-  const textGeometry = new THREE.PlaneGeometry(cylinderRadius * 1.5, cylinderRadius * 1.5);
+  // Create geometry for the text plane - adjusted size for better proportions
+  const textGeometry = new THREE.PlaneGeometry(cylinderRadius * 2, cylinderRadius * 2);
   
   // Create text mesh
   const textMesh = new THREE.Mesh(textGeometry, textMaterial);
   
-  // Position the text above the cylinder
-  textMesh.position.set(0, cylinderRadius + 15, 0);
+  // Position the text above the cylinder with more clearance
+  textMesh.position.set(0, cylinderRadius + 20, 0); // Increased from 15 to 20
   
   // Make text always face the camera
   textMesh.userData.isText = true;
@@ -607,6 +669,6 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
   }
   window.textMeshes.push(textMesh);
   
-  console.log(`Added double-sided text label "${text}" to cylinder`);
+  console.log(`Added double-sided text label "${text}" with description to cylinder`);
 }
 
