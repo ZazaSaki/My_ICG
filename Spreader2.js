@@ -43,16 +43,38 @@ function _assignCoordinatesRecursive(node, x, y, z, config, depth) {
 
     if (node.children && node.children.length > 0) {
         const numChildren = node.children.length;
-        // Ensure even distribution around the full circle (2π radians)
-        const angleStep = (2 * Math.PI) / numChildren;
-        // Add a random starting offset to avoid all trees looking identical
-        const startingAngle = Math.random() * (2 * Math.PI);
-        // Reduced multiplier for spread radius increase (from 0.5 to 0.2)
-        const currentRadius = config.siblingSpreadRadius * (1 + depth * 0.2);
+        
+        // Calculate minimum angle needed to prevent bridge overlap
+        // Assume bridge width is roughly 1/4 of node radius, and we want some spacing
+        const nodeRadius = config.nodeVisualRadius;
+        const bridgeWidth = Math.max(nodeRadius / 4, 8); // Same as in main.js
+        const spreadRadius = config.siblingSpreadRadius * (1 + depth * 0.2);
+        
+        // Calculate minimum angular separation needed to prevent overlap
+        // Using arc length = radius * angle, we want bridges to have at least bridgeWidth*2 separation
+        const minAngularSeparation = (bridgeWidth * 2.5) / spreadRadius; // 2.5 for extra spacing
+        
+        // Ensure we have enough angular space for all children
+        const requiredTotalAngle = numChildren * minAngularSeparation;
+        const availableAngle = 2 * Math.PI;
+        
+        // If we need more space than available, increase the radius
+        let currentRadius = spreadRadius;
+        if (requiredTotalAngle > availableAngle) {
+            currentRadius = (numChildren * bridgeWidth * 2.5) / (2 * Math.PI);
+            console.log(`Increased radius from ${spreadRadius} to ${currentRadius} for ${numChildren} children`);
+        }
+        
+        // Calculate actual angle step (either even distribution or minimum separation)
+        const angleStep = Math.max((2 * Math.PI) / numChildren, minAngularSeparation);
+        
+        // Use a deterministic starting angle based on node position to avoid randomness causing overlap
+        const startingAngle = (x + y + z) % (2 * Math.PI);
 
         node.children.forEach((child, index) => {
-            // Calculate angle ensuring even distribution
+            // Calculate angle ensuring even distribution and no overlap
             const angle = startingAngle + (index * angleStep);
+            
             // Children are placed in a circle in the XY plane relative to the parent
             const childX = x + currentRadius * Math.cos(angle);
             const childY = y + currentRadius * Math.sin(angle);
