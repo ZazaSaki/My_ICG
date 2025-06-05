@@ -126,8 +126,12 @@ function onKeyDown(event) {
   
   // Toggle day/night with 'N' key
   if (event.key === 'n' || event.key === 'N') {
-    const isNight = toggleDayNight();
-    showMessage(`Switched to ${isNight ? 'Night' : 'Day'} mode`, 'info');
+    const targetNight = toggleDayNight();
+    if (targetNight !== null) {
+      showMessage(`Transitioning to ${targetNight ? 'Night' : 'Day'} mode...`, 'info');
+    } else {
+      showMessage('Transition already in progress', 'info');
+    }
   }
 }
 
