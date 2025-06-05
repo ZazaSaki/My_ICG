@@ -418,13 +418,8 @@ function setupPauseMenuEvents() {
  * Open the world creator website
  */
 function openWorldCreatorWebsite() {
-  // You can replace this URL with your actual world creator website
-  const creatorURL = 'https://jsonviewer.stack.hu/'; // Placeholder - replace with actual tree generator
-  
-  // Alternative URLs you might want to use:
-  // const creatorURL = 'https://marketplace.visualstudio.com/items?itemName=ZelCore.tree-generator';
-  // const creatorURL = 'https://tree.nathanfriend.io/';
-  // const creatorURL = 'https://your-custom-world-generator.com';
+  // Updated to use the correct world creator website
+  const creatorURL = 'https://liber-metrika.vercel.app/tree_interactor';
   
   try {
     window.open(creatorURL, '_blank', 'noopener,noreferrer');
