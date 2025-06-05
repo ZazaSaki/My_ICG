@@ -5,6 +5,9 @@ import { connectCylindersWithBridge, createCylinderNetwork, clearBridgeTracking 
 import { toggleHitboxVisibility } from './hitboxUtils.js';
 import { getChildrenOfNode, getChildrenKeysOfNode, hasChildren } from './nodeUtils.js';
 import { initializeLighting, toggleDayNight, getIsNightMode } from './dayNightCycle.js';
+import { initializeFog, toggleFog, updateFogForDayNight, isFogEnabled } from './fogEffects.js';
+import { initializeAdvancedFog, toggleAdvancedFog, updateAdvancedFogForDayNight, isAdvancedFogEnabled } from './advancedFogEffects.js';
+import { initializePauseMenu, isPauseMenuOpen } from './pauseMenu.js';
 
 // Import the NEW world generation entry point
 import { generateFromDefaultFormat } from './WorldGenerator.js';
@@ -46,6 +49,12 @@ function init() {
   // Initialize lighting system
   initializeLighting();
   
+  // Initialize advanced fog effects instead of basic fog
+  initializeAdvancedFog();
+  
+  // Initialize pause menu
+  initializePauseMenu();
+  
   // Set up file upload functionality
   setupFileUpload();
   
@@ -61,8 +70,10 @@ function init() {
   // Add key listener for hitbox toggling and day/night toggle
   window.addEventListener('keydown', onKeyDown);
   
-  // Expose reset function globally for pause menu access
+  // Expose functions globally for pause menu access
   window.resetToDefaultWorld = resetToDefaultWorld;
+  window.handleCustomWorldUpload = handleCustomWorldUpload;
+  window.showMessage = showMessage; // Expose showMessage for pause menu
   
   // Expose root node position globally
   window.rootNodePosition = rootNodePosition;
@@ -129,8 +140,31 @@ function onKeyDown(event) {
     const targetNight = toggleDayNight();
     if (targetNight !== null) {
       showMessage(`Transitioning to ${targetNight ? 'Night' : 'Day'} mode...`, 'info');
+      // Update fog for new lighting
+      setTimeout(() => updateAdvancedFogForDayNight(), 100);
     } else {
       showMessage('Transition already in progress', 'info');
+    }
+  }
+  
+  // Toggle advanced fog with 'F' key
+  if (event.key === 'f' || event.key === 'F') {
+    const fogEnabled = toggleAdvancedFog();
+    showMessage(`Advanced fog ${fogEnabled ? 'enabled' : 'disabled'}`, 'info');
+  }
+  
+  // Toggle between basic and advanced fog with 'G' key
+  if (event.key === 'g' || event.key === 'G') {
+    const advancedEnabled = isAdvancedFogEnabled();
+    if (advancedEnabled) {
+      toggleAdvancedFog();
+      toggleFog();
+      showMessage('Switched to basic fog', 'info');
+    } else {
+      const basicEnabled = isFogEnabled();
+      if (basicEnabled) toggleFog();
+      toggleAdvancedFog();
+      showMessage('Switched to advanced fog', 'info');
     }
   }
 }
@@ -389,6 +423,27 @@ function showMessage(text, type = 'info') {
       messageDiv.parentNode.removeChild(messageDiv);
     }
   }, 3000);
+}
+
+/**
+ * Handle custom world upload from pause menu
+ */
+function handleCustomWorldUpload(jsonData) {
+  console.log('Loaded JSON data from pause menu:', jsonData);
+  
+  // Validate the JSON structure
+  if (validateJsonStructure(jsonData)) {
+    customWorldData = jsonData;
+    regenerateWorld();
+    showMessage('World loaded successfully!', 'success');
+    
+    // Dispatch event to notify that world was reloaded
+    document.dispatchEvent(new CustomEvent('worldReloaded', {
+      detail: { source: 'pauseMenu', data: jsonData }
+    }));
+  } else {
+    showMessage('Invalid JSON structure. Please provide a valid tree structure.', 'error');
+  }
 }
 
 // load_map function adapted for Spreader2's output

@@ -91,6 +91,11 @@ function animateTransition() {
   // Update lighting based on current progress
   updateLightingForTransition();
   
+  // Update fog if available
+  if (window.updateFogForDayNight) {
+    window.updateFogForDayNight();
+  }
+  
   // Check if transition is complete
   if ((targetNightMode && transitionProgress >= 1) || (!targetNightMode && transitionProgress <= 0)) {
     isNightMode = targetNightMode;
@@ -110,6 +115,11 @@ function updateLightingForTransition() {
   updateSkyboxForTransition();
   updateAmbientLightForTransition();
   updateDirectionalLightForTransition();
+  
+  // Update skybox transition progress uniform
+  if (skybox && skybox.material.uniforms) {
+    skybox.material.uniforms.transitionProgress.value = transitionProgress;
+  }
 }
 
 function updateSkyboxForTransition() {

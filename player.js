@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { scene, controls, renderer, camera, collidableObjects, playerHeight, playerRadius } from './main.js';
+import { isPauseMenuOpen } from './pauseMenu.js';
 
 // Player movement variables
 let moveForward = false;
@@ -24,10 +25,7 @@ let playerCollider;
 let animationFrameId;
 
 // Foto mode variables
-let isPaused = false;
 let fotoModeEnabled = false;
-let pauseOverlay;
-let pauseMenu;
 
 export function setupPlayer() {
   console.log("Setting up player");
@@ -39,9 +37,6 @@ export function setupPlayer() {
   
   // Create visual player collider
   createPlayerCollider();
-  
-  // Create pause overlay
-  createPauseOverlay();
   
   // Expose reset function globally
   window.resetPlayerState = resetPlayerState;
@@ -68,13 +63,8 @@ function resetPlayerState() {
   // Reset direction
   direction.set(0, 0, 0);
   
-  // Reset physics state
-  isPaused = false;
-  
-  // Hide pause overlay if shown
-  if (pauseOverlay) {
-    pauseOverlay.style.display = 'none';
-  }
+  // Reset foto mode
+  fotoModeEnabled = false;
   
   // Position player on root node if available
   if (controls.getObject && window.rootNodePosition) {
@@ -88,171 +78,9 @@ function resetPlayerState() {
   }
 }
 
-function createPauseOverlay() {
-  pauseOverlay = document.createElement('div');
-  pauseOverlay.style.position = 'absolute';
-  pauseOverlay.style.top = '0';
-  pauseOverlay.style.left = '0';
-  pauseOverlay.style.right = '0';
-  pauseOverlay.style.bottom = '0';
-  pauseOverlay.style.backgroundColor = 'rgba(0,0,0,0.8)';
-  pauseOverlay.style.display = 'none';
-  pauseOverlay.style.flexDirection = 'column';
-  pauseOverlay.style.justifyContent = 'center';
-  pauseOverlay.style.alignItems = 'center';
-  pauseOverlay.style.color = '#fff';
-  pauseOverlay.style.fontSize = '24px';
-  pauseOverlay.style.zIndex = '1000';
-  
-  // Create pause menu
-  pauseMenu = document.createElement('div');
-  pauseMenu.style.backgroundColor = 'rgba(0,0,0,0.9)';
-  pauseMenu.style.padding = '30px';
-  pauseMenu.style.borderRadius = '10px';
-  pauseMenu.style.border = '2px solid #fff';
-  pauseMenu.style.textAlign = 'center';
-  pauseMenu.style.minWidth = '300px';
-  
-  pauseMenu.innerHTML = `
-    <h2 style="margin-top: 0; color: #fff;">PAUSED</h2>
-    <div style="margin: 20px 0;">
-      <button id="resumeBtn" style="
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        margin: 5px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 16px;
-        min-width: 120px;
-      ">Resume</button>
-    </div>
-    <div style="margin: 20px 0;">
-      <button id="uploadJsonBtn" style="
-        background-color: #2196F3;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        margin: 5px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 16px;
-        min-width: 120px;
-      ">Upload JSON</button>
-    </div>
-    <div style="margin: 20px 0;">
-      <button id="createTreeBtn" style="
-        background-color: #9C27B0;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        margin: 5px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 16px;
-        min-width: 120px;
-      ">Create Tree</button>
-    </div>
-    <div style="margin: 20px 0;">
-      <button id="resetWorldBtn" style="
-        background-color: #ff6b6b;
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        margin: 5px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 16px;
-        min-width: 120px;
-      ">Reset World</button>
-    </div>
-    <div style="margin-top: 30px; font-size: 14px; color: #ccc;">
-      <p>Controls:</p>
-      <p>WASD - Move | Space - Jump | Mouse - Look</p>
-      <p>P - Toggle Photo Mode | ESC - Pause Menu</p>
-      <p>H - Toggle Hitboxes</p>
-    </div>
-  `;
-  
-  pauseOverlay.appendChild(pauseMenu);
-  document.body.appendChild(pauseOverlay);
-  
-  // Add event listeners for menu buttons
-  setupPauseMenuListeners();
-}
-
-function setupPauseMenuListeners() {
-  document.getElementById('resumeBtn').addEventListener('click', () => {
-    togglePause();
-  });
-  
-  document.getElementById('uploadJsonBtn').addEventListener('click', () => {
-    // Trigger the file input
-    document.getElementById('fileInput').click();
-  });
-  
-  document.getElementById('createTreeBtn').addEventListener('click', () => {
-    // Open the tree creator in a new tab
-    window.open('https://liber-metrika.vercel.app/tree_interactor', '_blank');
-  });
-  
-  document.getElementById('resetWorldBtn').addEventListener('click', () => {
-    // Reset to default world
-    if (window.resetToDefaultWorld) {
-      window.resetToDefaultWorld();
-    }
-    togglePause(); // Resume after reset
-  });
-  
-  // Listen for successful file upload to close menu and reload
-  document.addEventListener('worldReloaded', () => {
-    console.log("World reloaded event received");
-    if (isPaused) {
-      togglePause(); // Close pause menu after successful upload
-    }
-    // Small delay to ensure world is fully loaded before resuming physics
-    setTimeout(() => {
-      resetPlayerState();
-    }, 100);
-  });
-  
-  // Add hover effects
-  const buttons = pauseMenu.querySelectorAll('button');
-  buttons.forEach(button => {
-    button.addEventListener('mouseenter', () => {
-      button.style.opacity = '0.8';
-      button.style.transform = 'scale(1.05)';
-    });
-    
-    button.addEventListener('mouseleave', () => {
-      button.style.opacity = '1';
-      button.style.transform = 'scale(1)';
-    });
-  });
-}
-
-function togglePause() {
-  isPaused = !isPaused;
-  if (isPaused) {
-    pauseOverlay.style.display = 'flex';
-    // Lock the pointer to prevent camera movement while paused
-    if (controls.isLocked) {
-      controls.unlock();
-    }
-  } else {
-    pauseOverlay.style.display = 'none';
-  }
-}
-
 function toggleFotoMode() {
   fotoModeEnabled = !fotoModeEnabled;
   console.log(`Foto mode ${fotoModeEnabled ? 'enabled' : 'disabled'}`);
-  
-  // If foto mode is disabled and currently paused, unpause
-  if (!fotoModeEnabled && isPaused) {
-    togglePause();
-  }
 }
 
 /**
@@ -284,15 +112,9 @@ function onKeyDown(event) {
     return;
   }
   
-  if (event.code === 'Escape') {
-    if (fotoModeEnabled || !controls.isLocked) {
-      togglePause();
-    }
-    return;
-  }
-  
-  // Skip movement if paused
-  if (isPaused) return;
+  // Don't handle ESC here - let pauseMenu.js handle it
+  // Skip movement if pause menu is open
+  if (isPauseMenuOpen()) return;
   
   switch (event.code) {
     case 'KeyW': 
@@ -322,8 +144,8 @@ function onKeyDown(event) {
 }
 
 function onKeyUp(event) {
-  // Skip if paused
-  if (isPaused) return;
+  // Skip if pause menu is open
+  if (isPauseMenuOpen()) return;
   
   switch (event.code) {
     case 'KeyW': 
@@ -680,8 +502,8 @@ function checkBridgeColliderSurface(feetPosition, bridgeObject) {
 function animatePlayer() {
   animationFrameId = requestAnimationFrame(animatePlayer);
 
-  // Skip physics updates if paused
-  if (isPaused) {
+  // Skip physics updates if pause menu is open
+  if (isPauseMenuOpen()) {
     // Update text orientations even when paused
     updateTextOrientations();
     renderer.render(scene, camera);
