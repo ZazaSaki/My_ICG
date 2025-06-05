@@ -29,9 +29,11 @@ init();
 function init() {
   console.log("Initializing scene");
   
-  // Configure renderer
+  // Configure renderer with simpler settings
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap; // Use standard shadow mapping
+  // Remove physically correct lighting which might be causing issues
   document.body.appendChild(renderer.domElement);
   
   // Set up camera and controls
@@ -116,14 +118,14 @@ function testNodeUtils() {
 }
 
 function setupLights() {
-  // Create sky background with sun
+  // Create sky background with night sky
   const skyboxGeometry = new THREE.SphereGeometry(500, 32, 32);
   const skyboxMaterial = new THREE.ShaderMaterial({
     uniforms: {
       sunPosition: { value: new THREE.Vector3(0.3, 0.7, 0.2).normalize() },
-      skyColor: { value: new THREE.Color(0x87CEEB) },
-      horizonColor: { value: new THREE.Color(0xB0E0E6) },
-      sunColor: { value: new THREE.Color(0xFFFFAA) }
+      skyColor: { value: new THREE.Color(0x0a0a2e) }, // Even darker night sky
+      horizonColor: { value: new THREE.Color(0x16213e) }, // Very dark blue
+      sunColor: { value: new THREE.Color(0x808080) } // Dim moon
     },
     vertexShader: `
       varying vec3 vWorldPosition;
@@ -147,13 +149,13 @@ function setupLights() {
         float heightFactor = direction.y;
         vec3 baseColor = mix(horizonColor, skyColor, smoothstep(-0.1, 0.5, heightFactor));
         
-        // Add sun
+        // Add very dim moon
         float sunDistance = distance(direction, sunPosition);
         float sunIntensity = 1.0 - smoothstep(0.0, 0.15, sunDistance);
         float sunGlow = 1.0 - smoothstep(0.0, 0.4, sunDistance);
         
-        vec3 finalColor = mix(baseColor, sunColor, sunIntensity * 0.9);
-        finalColor = mix(finalColor, sunColor * 0.3, sunGlow * 0.4);
+        vec3 finalColor = mix(baseColor, sunColor, sunIntensity * 0.1);
+        finalColor = mix(finalColor, sunColor * 0.05, sunGlow * 0.1);
         
         gl_FragColor = vec4(finalColor, 1.0);
       }
@@ -164,23 +166,13 @@ function setupLights() {
   const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
   scene.add(skybox);
   
-  // Ambient light
-  const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+  // Almost no ambient light to make cylinder lights stand out
+  const ambientLight = new THREE.AmbientLight(0x202040, 0.02);
   scene.add(ambientLight);
   
-  // Directional light (sun)
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-  directionalLight.position.set(150, 350, 100);
-  directionalLight.castShadow = true;
-  directionalLight.shadow.mapSize.width = 2048;
-  directionalLight.shadow.mapSize.height = 2048;
-  directionalLight.shadow.camera.near = 0.5;
-  directionalLight.shadow.camera.far = 500;
-  directionalLight.shadow.camera.left = -100;
-  directionalLight.shadow.camera.right = 100;
-  directionalLight.shadow.camera.top = 100;
-  directionalLight.shadow.camera.bottom = -100;
-  scene.add(directionalLight);
+  // No directional light - rely entirely on point lights
+  
+  console.log("Setup complete - very dark scene, cylinder lights should be prominent");
 }
 
 function setupFileUpload() {
@@ -253,8 +245,10 @@ function validateJsonStructure(data) {
 }
 
 function regenerateWorld() {
-  // Clear existing world objects (keep skybox and lights)
+  // Clear existing world objects and their lights
   const objectsToRemove = [];
+  const lightsToRemove = [];
+  
   scene.traverse((child) => {
     // Remove cylinders, bridges, and other world objects but keep lights and skybox
     if (child.isMesh && 
@@ -262,17 +256,32 @@ function regenerateWorld() {
         (child.geometry.type === 'CylinderGeometry' || 
          child.geometry.type === 'BoxGeometry') &&
         !child.material.uniforms) { // Exclude skybox (has shader uniforms)
+      
+      // Remove associated lights
+      if (child.userData.lights) {
+        child.userData.lights.forEach(light => lightsToRemove.push(light));
+      }
+      
       objectsToRemove.push(child);
+    }
+    
+    // Also remove orphaned point lights
+    if (child.isLight && child.type === 'PointLight') {
+      lightsToRemove.push(child);
     }
   });
 
   objectsToRemove.forEach(obj => {
     scene.remove(obj);
-    // Also remove from collidableObjects array
     const index = collidableObjects.indexOf(obj);
     if (index > -1) {
       collidableObjects.splice(index, 1);
     }
+  });
+  
+  // Remove all point lights
+  lightsToRemove.forEach(light => {
+    scene.remove(light);
   });
 
   // Clear bridge tracking data for fresh start
