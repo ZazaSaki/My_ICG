@@ -4,6 +4,7 @@ import { createSimpleCylinder } from './cylinderUtils.js';
 import { connectCylindersWithBridge, createCylinderNetwork, clearBridgeTracking } from './bridgeUtils.js';
 import { toggleHitboxVisibility } from './hitboxUtils.js';
 import { getChildrenOfNode, getChildrenKeysOfNode, hasChildren } from './nodeUtils.js';
+import { initializeLighting, toggleDayNight, getIsNightMode } from './dayNightCycle.js';
 
 // Import the NEW world generation entry point
 import { generateFromDefaultFormat } from './WorldGenerator.js';
@@ -32,8 +33,7 @@ function init() {
   // Configure renderer with simpler settings
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap; // Use standard shadow mapping
-  // Remove physically correct lighting which might be causing issues
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   document.body.appendChild(renderer.domElement);
   
   // Set up camera and controls
@@ -43,8 +43,8 @@ function init() {
   // Test nodeUtils functions
   testNodeUtils();
   
-  // Lighting
-  setupLights();
+  // Initialize lighting system
+  initializeLighting();
   
   // Set up file upload functionality
   setupFileUpload();
@@ -58,7 +58,7 @@ function init() {
   // Set up pointer lock controls
   setupPointerLock();
   
-  // Add key listener for hitbox toggling
+  // Add key listener for hitbox toggling and day/night toggle
   window.addEventListener('keydown', onKeyDown);
   
   // Expose reset function globally for pause menu access
@@ -117,62 +117,18 @@ function testNodeUtils() {
   console.log("--- End of nodeUtils test ---");
 }
 
-function setupLights() {
-  // Create sky background with night sky
-  const skyboxGeometry = new THREE.SphereGeometry(500, 32, 32);
-  const skyboxMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-      sunPosition: { value: new THREE.Vector3(0.3, 0.7, 0.2).normalize() },
-      skyColor: { value: new THREE.Color(0x0a0a2e) }, // Even darker night sky
-      horizonColor: { value: new THREE.Color(0x16213e) }, // Very dark blue
-      sunColor: { value: new THREE.Color(0x808080) } // Dim moon
-    },
-    vertexShader: `
-      varying vec3 vWorldPosition;
-      void main() {
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldPosition = worldPosition.xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 sunPosition;
-      uniform vec3 skyColor;
-      uniform vec3 horizonColor;
-      uniform vec3 sunColor;
-      varying vec3 vWorldPosition;
-      
-      void main() {
-        vec3 direction = normalize(vWorldPosition);
-        
-        // Create gradient from horizon to sky
-        float heightFactor = direction.y;
-        vec3 baseColor = mix(horizonColor, skyColor, smoothstep(-0.1, 0.5, heightFactor));
-        
-        // Add very dim moon
-        float sunDistance = distance(direction, sunPosition);
-        float sunIntensity = 1.0 - smoothstep(0.0, 0.15, sunDistance);
-        float sunGlow = 1.0 - smoothstep(0.0, 0.4, sunDistance);
-        
-        vec3 finalColor = mix(baseColor, sunColor, sunIntensity * 0.1);
-        finalColor = mix(finalColor, sunColor * 0.05, sunGlow * 0.1);
-        
-        gl_FragColor = vec4(finalColor, 1.0);
-      }
-    `,
-    side: THREE.BackSide
-  });
+// Handle keyboard input
+function onKeyDown(event) {
+  // Toggle hitbox visibility with 'H' key
+  if (event.key === 'h' || event.key === 'H') {
+    toggleHitboxVisibility();
+  }
   
-  const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
-  scene.add(skybox);
-  
-  // Almost no ambient light to make cylinder lights stand out
-  const ambientLight = new THREE.AmbientLight(0x202040, 0.02);
-  scene.add(ambientLight);
-  
-  // No directional light - rely entirely on point lights
-  
-  console.log("Setup complete - very dark scene, cylinder lights should be prominent");
+  // Toggle day/night with 'N' key
+  if (event.key === 'n' || event.key === 'N') {
+    const isNight = toggleDayNight();
+    showMessage(`Switched to ${isNight ? 'Night' : 'Day'} mode`, 'info');
+  }
 }
 
 function setupFileUpload() {
@@ -328,17 +284,6 @@ async function createLevelWithSpreader() {
     }
 }
 
-function createWall(x, y, z, width, height, depth, material) {
-  const geometry = new THREE.BoxGeometry(width, height, depth);
-  const wall = new THREE.Mesh(geometry, material);
-  wall.position.set(x, y, z);
-  wall.castShadow = true;
-  wall.receiveShadow = true;
-  scene.add(wall);
-  collidableObjects.push(wall);
-  return wall;
-}
-
 function setupPointerLock() {
   const overlay = document.createElement('div');
   overlay.id = 'overlay';
@@ -394,14 +339,6 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// Handle keyboard input
-function onKeyDown(event) {
-  // Toggle hitbox visibility with 'H' key
-  if (event.key === 'h' || event.key === 'H') {
-    toggleHitboxVisibility();
-  }
-}
-
 function resetToDefaultWorld() {
   customWorldData = null;
   regenerateWorld();
@@ -451,7 +388,7 @@ function showMessage(text, type = 'info') {
 }
 
 // load_map function adapted for Spreader2's output
-function load_map(mapNode, isRoot = false) { // mapNode is a node { location, radius, connections, name, ... }
+function load_map(mapNode, isRoot = false) {
   if (!mapNode || !mapNode.location) {
     console.warn("load_map: Invalid mapNode received", mapNode);
     return null;
@@ -479,8 +416,6 @@ function load_map(mapNode, isRoot = false) { // mapNode is a node { location, ra
   }
 
   console.log(`Loading map node: ${mapNode.name || 'Unnamed'}, Radius: ${radius}`);
-  console.log(`  Spreader Coords: X=${location.x.toFixed(2)}, Y_horiz=${location.y.toFixed(2)}, Z_depth=${location.z.toFixed(2)}`);
-  console.log(`  Three.js Coords: X=${threeX.toFixed(2)}, Y_height=${threeY_height.toFixed(2)}, Z_depth=${threeZ.toFixed(2)}`);
   
   const cylinderMaterial = new THREE.MeshStandardMaterial({
     color: Math.random() * 0xffffff, // Random color for differentiation
@@ -500,7 +435,7 @@ function load_map(mapNode, isRoot = false) { // mapNode is a node { location, ra
   if (body) {
     // Store mapNode data in cylinder userData for description access
     body.userData.mapNode = mapNode;
-    addTextToyCylinder(body, mapNode.name || mapNode.id || 'Node', radius);
+    addTextToCylinder(body, mapNode.name || mapNode.id || 'Node', radius);
   }
 
   if (mapNode.connections && mapNode.connections.length > 0) {
@@ -510,36 +445,29 @@ function load_map(mapNode, isRoot = false) { // mapNode is a node { location, ra
             connectCylindersWithBridge(
                 body,
                 childBody,
-                Math.max(radius / 4, 8),    // Reduced bridge width (was radius/3, now radius/4) with minimum 8
-                1.5,           // Reduced bridge thickness for more elegant bridges
-                0,             // height offset for bridge (relative to cylinder centers)
+                Math.max(radius / 4, 8),
+                1.5,
+                0,
                 new THREE.MeshStandardMaterial({ color: 0xA0522D, roughness: 0.7 })
             );
         }
     }
   }
-  return body; // Return the Three.js object for this node
+  return body;
 }
 
-/**
- * Add a text label to a cylinder
- * @param {THREE.Mesh} cylinder - The cylinder to add text to
- * @param {string} text - The text to display
- * @param {number} cylinderRadius - The radius of the cylinder
- */
-function addTextToyCylinder(cylinder, text, cylinderRadius) {
+function addTextToCylinder(cylinder, text, cylinderRadius) {
   // Create canvas for text texture
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   
-  // Set canvas size based on text length and cylinder size - increased for more spacing
-  const canvasSize = Math.max(320, cylinderRadius * 12); // Increased from 10 to 12
+  // Set canvas size based on text length and cylinder size
+  const canvasSize = Math.max(320, cylinderRadius * 12);
   canvas.width = canvasSize;
   canvas.height = canvasSize;
   
   // Configure text styling for main label
   const mainFontSize = Math.max(20, cylinderRadius * 2);
-  const descriptionFontSize = Math.max(10, cylinderRadius * 0.8); // Reduced from 1 to 0.8 for smaller description text
   
   context.textAlign = 'center';
   context.textBaseline = 'middle';
@@ -553,118 +481,35 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
   context.lineWidth = 4;
   context.strokeRect(0, 0, canvas.width, canvas.height);
   
-  // Handle long text by wrapping for main label
-  const maxWidth = canvas.width * 0.8;
-  const words = text.split(' ');
-  const mainLines = [];
-  let currentLine = words[0];
-  
-  // Set font for measuring main text
-  context.font = `bold ${mainFontSize}px Arial, sans-serif`;
-  
-  for (let i = 1; i < words.length; i++) {
-    const word = words[i];
-    const width = context.measureText(currentLine + ' ' + word).width;
-    if (width < maxWidth) {
-      currentLine += ' ' + word;
-    } else {
-      mainLines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  mainLines.push(currentLine);
-  
-  // Get description from mapNode if available
-  let description = '';
-  if (cylinder.userData && cylinder.userData.mapNode) {
-    description = cylinder.userData.mapNode.description || '';
-  }
-  
-  // Handle description text wrapping
-  const descriptionLines = [];
-  if (description) {
-    context.font = `${descriptionFontSize}px Arial, sans-serif`;
-    const descWords = description.split(' ');
-    let currentDescLine = descWords[0] || '';
-    
-    for (let i = 1; i < descWords.length; i++) {
-      const word = descWords[i];
-      const width = context.measureText(currentDescLine + ' ' + word).width;
-      if (width < maxWidth) {
-        currentDescLine += ' ' + word;
-      } else {
-        descriptionLines.push(currentDescLine);
-        currentDescLine = word;
-      }
-    }
-    if (currentDescLine) {
-      descriptionLines.push(currentDescLine);
-    }
-  }
-  
-  // Calculate text heights and positioning with better spacing
-  const mainLineHeight = mainFontSize * 1.2;
-  const descLineHeight = descriptionFontSize * 1.2;
-  const spacingBetweenSections = mainFontSize * 0.8; // Increased spacing between title and description
-  
-  // Calculate total heights
-  const totalMainHeight = mainLines.length * mainLineHeight;
-  const totalDescHeight = descriptionLines.length * descLineHeight;
-  const totalContentHeight = totalMainHeight + spacingBetweenSections + totalDescHeight;
-  
-  // Start positioning from top of content area (with padding)
-  const paddingTop = canvasSize * 0.15; // 15% padding from top
-  const contentStartY = paddingTop;
-  
-  // Draw main text lines (title)
+  // Draw text
   context.font = `bold ${mainFontSize}px Arial, sans-serif`;
   context.fillStyle = '#333333';
   context.strokeStyle = '#ffffff';
   context.lineWidth = 3;
   
-  mainLines.forEach((line, index) => {
-    const y = contentStartY + (index * mainLineHeight) + (mainLineHeight / 2);
-    context.strokeText(line, canvas.width / 2, y);
-    context.fillText(line, canvas.width / 2, y);
-  });
-  
-  // Draw description lines (if any)
-  if (descriptionLines.length > 0) {
-    context.font = `${descriptionFontSize}px Arial, sans-serif`;
-    context.fillStyle = '#666666'; // Lighter color for description
-    context.strokeStyle = '#ffffff';
-    context.lineWidth = 1.5; // Thinner stroke for description
-    
-    // Position description below title with proper spacing
-    const descStartY = contentStartY + totalMainHeight + spacingBetweenSections;
-    
-    descriptionLines.forEach((line, index) => {
-      const y = descStartY + (index * descLineHeight) + (descLineHeight / 2);
-      context.strokeText(line, canvas.width / 2, y);
-      context.fillText(line, canvas.width / 2, y);
-    });
-  }
+  context.strokeText(text, canvas.width / 2, canvas.height / 2);
+  context.fillText(text, canvas.width / 2, canvas.height / 2);
   
   // Create texture from canvas
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   
-  // Create material for the text - MAKE IT DOUBLE-SIDED
+  // Create material for the text
   const textMaterial = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
     alphaTest: 0.1,
-    side: THREE.DoubleSide // This makes it visible from both sides
+    side: THREE.DoubleSide
   });
   
-  // Create geometry for the text plane - adjusted size for better proportions
+  // Create geometry for the text plane
   const textGeometry = new THREE.PlaneGeometry(cylinderRadius * 2, cylinderRadius * 2);
   
   // Create text mesh
   const textMesh = new THREE.Mesh(textGeometry, textMaterial);
   
-  // Position the text above the cylinder with more clearance
-  textMesh.position.set(0, cylinderRadius + 20, 0); // Increased from 15 to 20
+  // Position the text above the cylinder
+  textMesh.position.set(0, cylinderRadius + 20, 0);
   
   // Make text always face the camera
   textMesh.userData.isText = true;
@@ -672,12 +517,5 @@ function addTextToyCylinder(cylinder, text, cylinderRadius) {
   // Add text to cylinder as a child
   cylinder.add(textMesh);
   
-  // Store reference for camera-facing updates
-  if (!window.textMeshes) {
-    window.textMeshes = [];
-  }
-  window.textMeshes.push(textMesh);
-  
-  console.log(`Added double-sided text label "${text}" with description to cylinder`);
+  console.log(`Added text label "${text}" to cylinder`);
 }
-
