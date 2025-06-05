@@ -27,7 +27,7 @@ const nightColors = {
   horizonColor: new THREE.Color(0x16213e), // Very dark blue
   sunColor: new THREE.Color(0x808080), // Dim moon
   ambientColor: new THREE.Color(0x202040),
-  ambientIntensity: 0.02
+  ambientIntensity: 0.005 // Reduced from 0.02 to make cylinder lights more prominent
 };
 
 /**

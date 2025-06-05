@@ -242,15 +242,15 @@ function addSimpleLightToCylinder(cylinder, intensity = 15.0, distance = 150, co
 function addMultipleSimpleLightsToCylinder(cylinder, numLights = 3, intensity = 12.0, distance = 120, color = 0xffffff) {
   const cylinderRadius = cylinder.geometry.parameters.radiusTop || cylinder.geometry.parameters.radius || 10;
   
-  // Create multiple lights around the cylinder
+  // Create multiple lights around the cylinder with moderate intensity
   for (let i = 0; i < numLights; i++) {
-    // Create a point light
-    const light = new THREE.PointLight(color, intensity, distance, 1);
+    // Create a moderately strong point light
+    const light = new THREE.PointLight(color, intensity, distance, 1.2); // Normal decay
     
     // Position lights in a circle around and above the cylinder
     const angle = (i / numLights) * Math.PI * 2;
     const radiusOffset = cylinderRadius * 0.8; // Position around the cylinder edge
-    const heightVariation = 10 + Math.random() * 15; // Random height variation
+    const heightVariation = 15 + Math.random() * 20; // Height variation
     
     const lightX = cylinder.position.x + Math.cos(angle) * radiusOffset;
     const lightY = cylinder.position.y + cylinderRadius + heightVariation;
@@ -259,13 +259,19 @@ function addMultipleSimpleLightsToCylinder(cylinder, numLights = 3, intensity = 
     light.position.set(lightX, lightY, lightZ);
     scene.add(light);
     
-    // Create a glowing sphere for each light with varied sizes
-    const sphereSize = 2 + Math.random() * 3; // Random size between 2-5
-    const glowGeometry = new THREE.SphereGeometry(sphereSize, 8, 8);
+    // Create bright glowing spheres that appear very luminous
+    const sphereSize = 3 + Math.random() * 2; // Moderate size: 3-5
+    const glowGeometry = new THREE.SphereGeometry(sphereSize, 12, 12);
+    
+    // Use a brighter color for the sphere than the light
+    const brighterColor = new THREE.Color(color).multiplyScalar(1.5);
+    
     const glowMaterial = new THREE.MeshBasicMaterial({ 
-      color: color,
-      emissive: color,
-      emissiveIntensity: 1.5 + Math.random() * 0.8 // Varied brightness
+      color: brighterColor,
+      emissive: brighterColor,
+      emissiveIntensity: 3.0, // Very bright emissive
+      transparent: true,
+      opacity: 0.9 // Slight transparency for glow effect
     });
     const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
     
@@ -284,29 +290,33 @@ function addMultipleSimpleLightsToCylinder(cylinder, numLights = 3, intensity = 
     cylinder.userData.lights.push(light);
   }
   
-  // Add one central light above the cylinder
-  const centralLight = new THREE.PointLight(color, intensity * 1.2, distance * 1.2, 1);
+  // Add one central light above the cylinder - moderate strength
+  const centralLight = new THREE.PointLight(color, intensity * 1.3, distance * 1.2, 1.0); // Moderate central light
   const centralX = cylinder.position.x;
-  const centralY = cylinder.position.y + cylinderRadius + 20;
+  const centralY = cylinder.position.y + cylinderRadius + 25;
   const centralZ = cylinder.position.z;
   
   centralLight.position.set(centralX, centralY, centralZ);
   scene.add(centralLight);
   
-  // Central glowing sphere - larger and brighter
-  const centralGlowGeometry = new THREE.SphereGeometry(5, 10, 10);
+  // Central glowing sphere - very bright and luminous
+  const centralGlowGeometry = new THREE.SphereGeometry(6, 16, 16);
+  const centralBrighterColor = new THREE.Color(color).multiplyScalar(1.8);
+  
   const centralGlowMaterial = new THREE.MeshBasicMaterial({ 
-    color: color,
-    emissive: color,
-    emissiveIntensity: 2.2
+    color: centralBrighterColor,
+    emissive: centralBrighterColor,
+    emissiveIntensity: 4.0, // Extremely bright emissive
+    transparent: true,
+    opacity: 0.95
   });
   const centralGlowSphere = new THREE.Mesh(centralGlowGeometry, centralGlowMaterial);
-  centralGlowSphere.position.set(0, cylinderRadius + 20, 0);
+  centralGlowSphere.position.set(0, cylinderRadius + 25, 0);
   cylinder.add(centralGlowSphere);
   
   cylinder.userData.lights.push(centralLight);
   
-  console.log(`Added ${numLights + 1} lights with multiple glowing spheres to cylinder`);
+  console.log(`Added ${numLights + 1} moderate lights with very bright glowing spheres to cylinder`);
   return cylinder.userData.lights;
 }
 
@@ -339,10 +349,10 @@ export function createSimpleCylinder(
   // Create visible hitbox
   createVisibleHitbox(cylinder, 0x00ff00);
   
-  // Add multiple lights with multiple glowing spheres
+  // Add moderate lights with very bright glowing spheres
   const lightColor = getRandomLightColor();
-  const numLights = 3 + Math.floor(Math.random() * 3); // 3-5 lights per cylinder
-  addMultipleSimpleLightsToCylinder(cylinder, numLights, 15.0, radius * 8 + 80, lightColor);
+  const numLights = 4 + Math.floor(Math.random() * 3); // 4-6 lights per cylinder
+  addMultipleSimpleLightsToCylinder(cylinder, numLights, 15.0, radius * 8 + 100, lightColor); // Moderate intensity
   
   return cylinder;
 }
