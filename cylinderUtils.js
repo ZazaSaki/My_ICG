@@ -199,9 +199,9 @@ function addSimpleLightToCylinder(cylinder, intensity = 15.0, distance = 150, co
   // Create a single, very strong point light
   const light = new THREE.PointLight(color, intensity, distance, 1); // decay = 1 for more realistic falloff
   
-  // Position light above cylinder
+  // Position light lower and around the cylinder instead of high above
   const lightX = cylinder.position.x;
-  const lightY = cylinder.position.y + cylinderRadius + 15;
+  const lightY = cylinder.position.y + cylinderRadius * 0.3; // Much lower: only 30% of radius above cylinder base
   const lightZ = cylinder.position.z;
   
   light.position.set(lightX, lightY, lightZ);
@@ -209,18 +209,18 @@ function addSimpleLightToCylinder(cylinder, intensity = 15.0, distance = 150, co
   // Add directly to scene
   scene.add(light);
   
-  // Add a very bright glowing sphere
-  const glowGeometry = new THREE.SphereGeometry(4, 8, 8);
+  // Add a smaller glowing sphere positioned lower
+  const glowGeometry = new THREE.SphereGeometry(2, 8, 8); // Smaller sphere
   const glowMaterial = new THREE.MeshBasicMaterial({ 
     color: color,
     emissive: color,
-    emissiveIntensity: 2.0 // Very bright
+    emissiveIntensity: 1.5 // Reduced brightness
   });
   const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
-  glowSphere.position.set(0, cylinderRadius + 15, 0);
+  glowSphere.position.set(0, cylinderRadius * 0.3, 0); // Same lower position
   cylinder.add(glowSphere);
   
-  console.log(`Added strong light with intensity ${intensity} at world position:`, light.position);
+  console.log(`Added lower light with intensity ${intensity} at world position:`, light.position);
   
   // Store light reference for cleanup
   if (!cylinder.userData.lights) {
@@ -242,43 +242,43 @@ function addSimpleLightToCylinder(cylinder, intensity = 15.0, distance = 150, co
 function addMultipleSimpleLightsToCylinder(cylinder, numLights = 3, intensity = 12.0, distance = 120, color = 0xffffff) {
   const cylinderRadius = cylinder.geometry.parameters.radiusTop || cylinder.geometry.parameters.radius || 10;
   
-  // Create multiple lights around the cylinder with moderate intensity
+  // Create multiple lights around the cylinder at lower height
   for (let i = 0; i < numLights; i++) {
     // Create a moderately strong point light
     const light = new THREE.PointLight(color, intensity, distance, 1.2); // Normal decay
     
-    // Position lights in a circle around and above the cylinder
+    // Position lights in a circle around the cylinder at lower height
     const angle = (i / numLights) * Math.PI * 2;
-    const radiusOffset = cylinderRadius * 0.8; // Position around the cylinder edge
-    const heightVariation = 15 + Math.random() * 20; // Height variation
+    const radiusOffset = cylinderRadius * 1.5; // Position further out from cylinder edge
+    const lowHeight = cylinderRadius * 0.5; // Much lower: only 50% of cylinder radius above base
     
     const lightX = cylinder.position.x + Math.cos(angle) * radiusOffset;
-    const lightY = cylinder.position.y + cylinderRadius + heightVariation;
+    const lightY = cylinder.position.y + lowHeight;
     const lightZ = cylinder.position.z + Math.sin(angle) * radiusOffset;
     
     light.position.set(lightX, lightY, lightZ);
     scene.add(light);
     
-    // Create bright glowing spheres that appear very luminous
-    const sphereSize = 3 + Math.random() * 2; // Moderate size: 3-5
+    // Create smaller glowing spheres positioned around the cylinder
+    const sphereSize = 2 + Math.random() * 1; // Smaller size: 2-3
     const glowGeometry = new THREE.SphereGeometry(sphereSize, 12, 12);
     
     // Use a brighter color for the sphere than the light
-    const brighterColor = new THREE.Color(color).multiplyScalar(1.5);
+    const brighterColor = new THREE.Color(color).multiplyScalar(1.3);
     
     const glowMaterial = new THREE.MeshBasicMaterial({ 
       color: brighterColor,
       emissive: brighterColor,
-      emissiveIntensity: 3.0, // Very bright emissive
+      emissiveIntensity: 2.0, // Reduced emissive intensity
       transparent: true,
-      opacity: 0.9 // Slight transparency for glow effect
+      opacity: 0.8 // Slight transparency for glow effect
     });
     const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
     
-    // Position the sphere relative to the cylinder
+    // Position the sphere relative to the cylinder - around it at low height
     glowSphere.position.set(
       Math.cos(angle) * radiusOffset,
-      cylinderRadius + heightVariation,
+      lowHeight,
       Math.sin(angle) * radiusOffset
     );
     cylinder.add(glowSphere);
@@ -290,33 +290,33 @@ function addMultipleSimpleLightsToCylinder(cylinder, numLights = 3, intensity = 
     cylinder.userData.lights.push(light);
   }
   
-  // Add one central light above the cylinder - moderate strength
-  const centralLight = new THREE.PointLight(color, intensity * 1.3, distance * 1.2, 1.0); // Moderate central light
+  // Add one central light at the base of the cylinder - very low
+  const centralLight = new THREE.PointLight(color, intensity * 0.8, distance * 0.8, 1.0); // Slightly weaker central light
   const centralX = cylinder.position.x;
-  const centralY = cylinder.position.y + cylinderRadius + 25;
+  const centralY = cylinder.position.y + cylinderRadius * 0.2; // Very low: only 20% of radius above base
   const centralZ = cylinder.position.z;
   
   centralLight.position.set(centralX, centralY, centralZ);
   scene.add(centralLight);
   
-  // Central glowing sphere - very bright and luminous
-  const centralGlowGeometry = new THREE.SphereGeometry(6, 16, 16);
-  const centralBrighterColor = new THREE.Color(color).multiplyScalar(1.8);
+  // Central glowing sphere - smaller and at base level
+  const centralGlowGeometry = new THREE.SphereGeometry(3, 16, 16); // Smaller central sphere
+  const centralBrighterColor = new THREE.Color(color).multiplyScalar(1.5);
   
   const centralGlowMaterial = new THREE.MeshBasicMaterial({ 
     color: centralBrighterColor,
     emissive: centralBrighterColor,
-    emissiveIntensity: 4.0, // Extremely bright emissive
+    emissiveIntensity: 2.5, // Moderate emissive
     transparent: true,
-    opacity: 0.95
+    opacity: 0.9
   });
   const centralGlowSphere = new THREE.Mesh(centralGlowGeometry, centralGlowMaterial);
-  centralGlowSphere.position.set(0, cylinderRadius + 25, 0);
+  centralGlowSphere.position.set(0, cylinderRadius * 0.2, 0); // At base level
   cylinder.add(centralGlowSphere);
   
   cylinder.userData.lights.push(centralLight);
   
-  console.log(`Added ${numLights + 1} moderate lights with very bright glowing spheres to cylinder`);
+  console.log(`Added ${numLights + 1} lights around and at base of cylinder`);
   return cylinder.userData.lights;
 }
 
@@ -349,10 +349,10 @@ export function createSimpleCylinder(
   // Create visible hitbox
   createVisibleHitbox(cylinder, 0x00ff00);
   
-  // Add moderate lights with very bright glowing spheres
+  // Add lights around the cylinder at low height
   const lightColor = getRandomLightColor();
   const numLights = 4 + Math.floor(Math.random() * 3); // 4-6 lights per cylinder
-  addMultipleSimpleLightsToCylinder(cylinder, numLights, 15.0, radius * 8 + 100, lightColor); // Moderate intensity
+  addMultipleSimpleLightsToCylinder(cylinder, numLights, 15.0, radius * 6 + 80, lightColor); // Shorter distance
   
   return cylinder;
 }
